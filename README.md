@@ -8,7 +8,6 @@ This project provides a desktop GUI application to organize video files for soci
 - Copies each video into its own folder in storage (named from the video filename).
 - Creates at least one description file (`description-1.txt`) per video folder.
 - Supports creating additional description files from the GUI.
-- Shows an in-app video preview with thumbnail-style first frame and Play/Pause/Stop controls.
 - Lets you edit and save descriptions.
 - Tracks metadata per video:
   - Category

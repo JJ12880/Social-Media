@@ -1,7 +1,3 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Forms.Integration;
 using VideoPostOrganizer.Models;
 using VideoPostOrganizer.Services;
 
@@ -15,34 +11,21 @@ public class MainForm : Form
     private readonly TextBox _sourceFolderTextBox = new() { Width = 560 };
     private readonly ListBox _videoListBox = new() { Width = 360, Height = 420 };
     private readonly ComboBox _descriptionSelector = new() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly TextBox _descriptionEditor = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Width = 520, Height = 170 };
+    private readonly TextBox _descriptionEditor = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Width = 520, Height = 250 };
     private readonly TextBox _categoryTextBox = new() { Width = 250 };
     private readonly TextBox _performanceTextBox = new() { Width = 250 };
     private readonly TextBox _tagsTextBox = new() { Width = 520 };
     private readonly DateTimePicker _lastPostDatePicker = new() { Width = 200, Format = DateTimePickerFormat.Short, ShowCheckBox = true };
-    private readonly Label _previewStatusLabel = new() { AutoSize = true, Text = "Select a video to preview." };
-
-    private readonly ElementHost _videoPreviewHost = new() { Width = 520, Height = 280 };
-    private readonly MediaElement _mediaElement = new()
-    {
-        LoadedBehavior = MediaState.Manual,
-        UnloadedBehavior = MediaState.Stop,
-        Stretch = Stretch.Uniform
-    };
 
     private readonly BindingSource _entriesBinding = new();
     private List<VideoEntry> _entries = new();
-    private bool _showThumbnailOnOpen;
 
     public MainForm()
     {
         Text = "Social Media Video Organizer";
         Width = 980;
-        Height = 760;
+        Height = 720;
         StartPosition = FormStartPosition.CenterScreen;
-
-        _videoPreviewHost.Child = _mediaElement;
-        _mediaElement.MediaOpened += MediaElementOnMediaOpened;
 
         var browseStorageButton = new Button { Text = "Browse..." };
         browseStorageButton.Click += (_, _) => BrowseFolder(_storageFolderTextBox);
@@ -61,15 +44,6 @@ public class MainForm : Form
 
         var saveButton = new Button { Text = "Save Selected Video" };
         saveButton.Click += (_, _) => SaveCurrentVideo();
-
-        var playButton = new Button { Text = "Play" };
-        playButton.Click += (_, _) => _mediaElement.Play();
-
-        var pauseButton = new Button { Text = "Pause" };
-        pauseButton.Click += (_, _) => _mediaElement.Pause();
-
-        var stopButton = new Button { Text = "Stop" };
-        stopButton.Click += (_, _) => _mediaElement.Stop();
 
         _videoListBox.DisplayMember = nameof(VideoEntry.DisplayName);
         _videoListBox.DataSource = _entriesBinding;
@@ -111,11 +85,14 @@ public class MainForm : Form
         leftPanel.Controls.Add(new Label { Text = "Videos", AutoSize = true });
         leftPanel.Controls.Add(_videoListBox);
 
-        var previewControlRow = new FlowLayoutPanel { Width = 700, Height = 38 };
-        previewControlRow.Controls.Add(new Label { Text = "Preview:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
-        previewControlRow.Controls.Add(playButton);
-        previewControlRow.Controls.Add(pauseButton);
-        previewControlRow.Controls.Add(stopButton);
+        var rightPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            AutoScroll = true,
+            Padding = new Padding(8)
+        };
 
         var descriptionRow = new FlowLayoutPanel { Width = 700, Height = 38 };
         descriptionRow.Controls.Add(new Label { Text = "Description file:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
@@ -132,18 +109,6 @@ public class MainForm : Form
         dateRow.Controls.Add(new Label { Text = "Last post date:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
         dateRow.Controls.Add(_lastPostDatePicker);
 
-        var rightPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            AutoScroll = true,
-            Padding = new Padding(8)
-        };
-
-        rightPanel.Controls.Add(previewControlRow);
-        rightPanel.Controls.Add(_previewStatusLabel);
-        rightPanel.Controls.Add(_videoPreviewHost);
         rightPanel.Controls.Add(descriptionRow);
         rightPanel.Controls.Add(new Label { Text = "Description text", AutoSize = true });
         rightPanel.Controls.Add(_descriptionEditor);
@@ -156,18 +121,6 @@ public class MainForm : Form
         Controls.Add(rightPanel);
         Controls.Add(leftPanel);
         Controls.Add(topPanel);
-    }
-
-    private void MediaElementOnMediaOpened(object? sender, RoutedEventArgs e)
-    {
-        if (!_showThumbnailOnOpen)
-        {
-            return;
-        }
-
-        _showThumbnailOnOpen = false;
-        _mediaElement.Position = TimeSpan.FromSeconds(0.2);
-        _mediaElement.Pause();
     }
 
     private void BrowseFolder(TextBox destination)
@@ -237,7 +190,6 @@ public class MainForm : Form
             _performanceTextBox.Text = string.Empty;
             _tagsTextBox.Text = string.Empty;
             _lastPostDatePicker.Checked = false;
-            ClearPreview();
             return;
         }
 
@@ -257,40 +209,7 @@ public class MainForm : Form
             _lastPostDatePicker.Checked = false;
         }
 
-        LoadVideoPreview(entry.VideoPath);
         LoadSelectedDescription();
-    }
-
-    private void LoadVideoPreview(string videoPath)
-    {
-        if (!File.Exists(videoPath))
-        {
-            ClearPreview();
-            _previewStatusLabel.Text = "Video file not found in storage.";
-            return;
-        }
-
-        try
-        {
-            _showThumbnailOnOpen = true;
-            _mediaElement.Stop();
-            _mediaElement.Source = new Uri(videoPath);
-            _mediaElement.Play();
-            _previewStatusLabel.Text = $"Loaded: {Path.GetFileName(videoPath)}";
-        }
-        catch (Exception ex)
-        {
-            ClearPreview();
-            _previewStatusLabel.Text = $"Unable to preview video: {ex.Message}";
-        }
-    }
-
-    private void ClearPreview()
-    {
-        _showThumbnailOnOpen = false;
-        _mediaElement.Stop();
-        _mediaElement.Source = null;
-        _previewStatusLabel.Text = "Select a video to preview.";
     }
 
     private void LoadSelectedDescription()
