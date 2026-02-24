@@ -215,10 +215,25 @@ public class MainForm : Form
 
         try
         {
+            ClearPreview();
+            _mediaElement.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+            Application.DoEvents();
+
             _service.RenameVideo(entry, nameTextBox.Text);
             _entries = _entries.OrderBy(x => x.VideoName).ToList();
             RebindEntries();
-            _videoListBox.SelectedItem = _entries.FirstOrDefault(x => x.FolderPath.Equals(entry.FolderPath, StringComparison.OrdinalIgnoreCase));
+
+            var renamedEntry = _entries.FirstOrDefault(x => x.FolderPath.Equals(entry.FolderPath, StringComparison.OrdinalIgnoreCase));
+            _videoListBox.SelectedItem = renamedEntry;
+
+            if (renamedEntry != null)
+            {
+                LoadSelectedVideo();
+            }
+        }
+        catch (IOException ex)
+        {
+            MessageBox.Show($"Rename failed: {ex.Message} Close preview and retry.");
         }
         catch (Exception ex)
         {
