@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Forms.Integration;
 using VideoPostOrganizer.Models;
@@ -23,7 +22,7 @@ public class MainForm : Form
     private readonly Label _previewStatusLabel = new() { AutoSize = true, Text = "Select a video to preview." };
 
     private readonly ElementHost _videoPreviewHost = new() { Width = 520, Height = 280 };
-    private readonly MediaElement _mediaElement = new()
+    private readonly System.Windows.Controls.MediaElement _mediaElement = new()
     {
         LoadedBehavior = MediaState.Manual,
         UnloadedBehavior = MediaState.Stop,
