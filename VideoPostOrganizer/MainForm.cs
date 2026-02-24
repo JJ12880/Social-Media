@@ -1,3 +1,7 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Forms.Integration;
 using VideoPostOrganizer.Models;
 using VideoPostOrganizer.Services;
 
@@ -11,21 +15,34 @@ public class MainForm : Form
     private readonly TextBox _sourceFolderTextBox = new() { Width = 560 };
     private readonly ListBox _videoListBox = new() { Width = 360, Height = 420 };
     private readonly ComboBox _descriptionSelector = new() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly TextBox _descriptionEditor = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Width = 520, Height = 250 };
+    private readonly TextBox _descriptionEditor = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Width = 520, Height = 170 };
     private readonly TextBox _categoryTextBox = new() { Width = 250 };
     private readonly TextBox _performanceTextBox = new() { Width = 250 };
     private readonly TextBox _tagsTextBox = new() { Width = 520 };
     private readonly DateTimePicker _lastPostDatePicker = new() { Width = 200, Format = DateTimePickerFormat.Short, ShowCheckBox = true };
+    private readonly Label _previewStatusLabel = new() { AutoSize = true, Text = "Select a video to preview." };
+
+    private readonly ElementHost _videoPreviewHost = new() { Width = 520, Height = 280 };
+    private readonly MediaElement _mediaElement = new()
+    {
+        LoadedBehavior = MediaState.Manual,
+        UnloadedBehavior = MediaState.Stop,
+        Stretch = Stretch.Uniform
+    };
 
     private readonly BindingSource _entriesBinding = new();
     private List<VideoEntry> _entries = new();
+    private bool _showThumbnailOnOpen;
 
     public MainForm()
     {
         Text = "Social Media Video Organizer";
         Width = 980;
-        Height = 720;
+        Height = 760;
         StartPosition = FormStartPosition.CenterScreen;
+
+        _videoPreviewHost.Child = _mediaElement;
+        _mediaElement.MediaOpened += MediaElementOnMediaOpened;
 
         var browseStorageButton = new Button { Text = "Browse..." };
         browseStorageButton.Click += (_, _) => BrowseFolder(_storageFolderTextBox);
@@ -45,8 +62,24 @@ public class MainForm : Form
         var saveButton = new Button { Text = "Save Selected Video" };
         saveButton.Click += (_, _) => SaveCurrentVideo();
 
+        var playButton = new Button { Text = "Play" };
+        playButton.Click += (_, _) => _mediaElement.Play();
+
+        var pauseButton = new Button { Text = "Pause" };
+        pauseButton.Click += (_, _) => _mediaElement.Pause();
+
+        var stopButton = new Button { Text = "Stop" };
+        stopButton.Click += (_, _) => _mediaElement.Stop();
+
+        var renameMenu = new ContextMenuStrip();
+        var renameMenuItem = new ToolStripMenuItem("Rename");
+        renameMenuItem.Click += (_, _) => RenameSelectedVideo();
+        renameMenu.Items.Add(renameMenuItem);
+
         _videoListBox.DisplayMember = nameof(VideoEntry.DisplayName);
         _videoListBox.DataSource = _entriesBinding;
+        _videoListBox.ContextMenuStrip = renameMenu;
+        _videoListBox.MouseDown += VideoListBoxOnMouseDown;
         _videoListBox.SelectedIndexChanged += (_, _) => LoadSelectedVideo();
         _descriptionSelector.SelectedIndexChanged += (_, _) => LoadSelectedDescription();
 
@@ -85,14 +118,11 @@ public class MainForm : Form
         leftPanel.Controls.Add(new Label { Text = "Videos", AutoSize = true });
         leftPanel.Controls.Add(_videoListBox);
 
-        var rightPanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            AutoScroll = true,
-            Padding = new Padding(8)
-        };
+        var previewControlRow = new FlowLayoutPanel { Width = 700, Height = 38 };
+        previewControlRow.Controls.Add(new Label { Text = "Preview:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
+        previewControlRow.Controls.Add(playButton);
+        previewControlRow.Controls.Add(pauseButton);
+        previewControlRow.Controls.Add(stopButton);
 
         var descriptionRow = new FlowLayoutPanel { Width = 700, Height = 38 };
         descriptionRow.Controls.Add(new Label { Text = "Description file:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
@@ -109,6 +139,18 @@ public class MainForm : Form
         dateRow.Controls.Add(new Label { Text = "Last post date:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
         dateRow.Controls.Add(_lastPostDatePicker);
 
+        var rightPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            AutoScroll = true,
+            Padding = new Padding(8)
+        };
+
+        rightPanel.Controls.Add(previewControlRow);
+        rightPanel.Controls.Add(_previewStatusLabel);
+        rightPanel.Controls.Add(_videoPreviewHost);
         rightPanel.Controls.Add(descriptionRow);
         rightPanel.Controls.Add(new Label { Text = "Description text", AutoSize = true });
         rightPanel.Controls.Add(_descriptionEditor);
@@ -121,6 +163,80 @@ public class MainForm : Form
         Controls.Add(rightPanel);
         Controls.Add(leftPanel);
         Controls.Add(topPanel);
+    }
+
+    private void VideoListBoxOnMouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Right)
+        {
+            return;
+        }
+
+        var index = _videoListBox.IndexFromPoint(e.Location);
+        if (index >= 0)
+        {
+            _videoListBox.SelectedIndex = index;
+        }
+    }
+
+    private void RenameSelectedVideo()
+    {
+        var entry = CurrentEntry;
+        if (entry == null)
+        {
+            MessageBox.Show("Select a video first.");
+            return;
+        }
+
+        using var renameForm = new Form
+        {
+            Text = "Rename Video",
+            Width = 400,
+            Height = 150,
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MinimizeBox = false,
+            MaximizeBox = false
+        };
+
+        var nameTextBox = new TextBox { Left = 15, Top = 15, Width = 350, Text = entry.VideoName };
+        var okButton = new Button { Text = "OK", Left = 210, Top = 50, Width = 75, DialogResult = DialogResult.OK };
+        var cancelButton = new Button { Text = "Cancel", Left = 290, Top = 50, Width = 75, DialogResult = DialogResult.Cancel };
+
+        renameForm.Controls.Add(nameTextBox);
+        renameForm.Controls.Add(okButton);
+        renameForm.Controls.Add(cancelButton);
+        renameForm.AcceptButton = okButton;
+        renameForm.CancelButton = cancelButton;
+
+        if (renameForm.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            _service.RenameVideo(entry, nameTextBox.Text);
+            _entries = _entries.OrderBy(x => x.VideoName).ToList();
+            RebindEntries();
+            _videoListBox.SelectedItem = _entries.FirstOrDefault(x => x.FolderPath.Equals(entry.FolderPath, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Rename failed: {ex.Message}");
+        }
+    }
+
+    private void MediaElementOnMediaOpened(object? sender, RoutedEventArgs e)
+    {
+        if (!_showThumbnailOnOpen)
+        {
+            return;
+        }
+
+        _showThumbnailOnOpen = false;
+        _mediaElement.Position = TimeSpan.FromSeconds(0.2);
+        _mediaElement.Pause();
     }
 
     private void BrowseFolder(TextBox destination)
@@ -190,6 +306,7 @@ public class MainForm : Form
             _performanceTextBox.Text = string.Empty;
             _tagsTextBox.Text = string.Empty;
             _lastPostDatePicker.Checked = false;
+            ClearPreview();
             return;
         }
 
@@ -209,7 +326,40 @@ public class MainForm : Form
             _lastPostDatePicker.Checked = false;
         }
 
+        LoadVideoPreview(entry.VideoPath);
         LoadSelectedDescription();
+    }
+
+    private void LoadVideoPreview(string videoPath)
+    {
+        if (!File.Exists(videoPath))
+        {
+            ClearPreview();
+            _previewStatusLabel.Text = "Video file not found in storage.";
+            return;
+        }
+
+        try
+        {
+            _showThumbnailOnOpen = true;
+            _mediaElement.Stop();
+            _mediaElement.Source = new Uri(videoPath);
+            _mediaElement.Play();
+            _previewStatusLabel.Text = $"Loaded: {Path.GetFileName(videoPath)}";
+        }
+        catch (Exception ex)
+        {
+            ClearPreview();
+            _previewStatusLabel.Text = $"Unable to preview video: {ex.Message}";
+        }
+    }
+
+    private void ClearPreview()
+    {
+        _showThumbnailOnOpen = false;
+        _mediaElement.Stop();
+        _mediaElement.Source = null;
+        _previewStatusLabel.Text = "Select a video to preview.";
     }
 
     private void LoadSelectedDescription()

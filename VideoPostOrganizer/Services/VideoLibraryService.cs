@@ -99,6 +99,39 @@ public class VideoLibraryService
         return imported.OrderBy(x => x.VideoName).ToList();
     }
 
+    public void RenameVideo(VideoEntry entry, string newVideoName)
+    {
+        if (string.IsNullOrWhiteSpace(newVideoName))
+        {
+            throw new ArgumentException("Video name cannot be empty.", nameof(newVideoName));
+        }
+
+        var trimmedName = newVideoName.Trim();
+        var safeFolderName = string.Join("_", trimmedName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+        if (string.IsNullOrWhiteSpace(safeFolderName))
+        {
+            throw new InvalidOperationException("The new video name is invalid for a folder name.");
+        }
+
+        var parentFolder = Directory.GetParent(entry.FolderPath)?.FullName
+            ?? throw new InvalidOperationException("Unable to resolve storage folder.");
+
+        var requestedPath = Path.Combine(parentFolder, safeFolderName);
+        var targetFolder = string.Equals(requestedPath, entry.FolderPath, StringComparison.OrdinalIgnoreCase)
+            ? entry.FolderPath
+            : GetUniqueFolderPath(requestedPath);
+
+        if (!string.Equals(targetFolder, entry.FolderPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Directory.Move(entry.FolderPath, targetFolder);
+            entry.FolderPath = targetFolder;
+            entry.VideoPath = Path.Combine(targetFolder, entry.VideoFileName);
+        }
+
+        entry.VideoName = trimmedName;
+        SaveMetadata(entry);
+    }
+
     public void SaveMetadata(VideoEntry entry)
     {
         var metadataPath = Path.Combine(entry.FolderPath, MetadataFileName);
@@ -141,5 +174,24 @@ public class VideoLibraryService
         var name = Path.GetFileNameWithoutExtension(fileName);
         var parts = name.Split('-');
         return parts.Length > 1 && int.TryParse(parts[^1], out var n) ? n : 0;
+    }
+
+    private static string GetUniqueFolderPath(string basePath)
+    {
+        if (!Directory.Exists(basePath))
+        {
+            return basePath;
+        }
+
+        for (var i = 1; i < 1000; i++)
+        {
+            var candidate = $"{basePath}-{i}";
+            if (!Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        throw new IOException("Unable to generate a unique folder name for renamed video.");
     }
 }
