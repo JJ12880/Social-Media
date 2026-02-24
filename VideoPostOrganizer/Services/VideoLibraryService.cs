@@ -9,6 +9,10 @@ public class VideoLibraryService
 {
     private const string MetadataFileName = "metadata.json";
     private const string CommonHashtagsFileName = "common-hashtags.json";
+    private static readonly HashSet<string> SupportedVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v"
+    };
 
     public List<VideoEntry> LoadFromStorage(string storageFolder)
     {
@@ -32,6 +36,8 @@ public class VideoLibraryService
                 var entry = JsonSerializer.Deserialize<VideoEntry>(json);
                 if (entry != null)
                 {
+                    entry.FolderPath = directory;
+                    entry.VideoPath = ResolveVideoPath(directory, entry.VideoFileName);
                     entry.PerformanceLevel = NormalizePerformanceLevel(entry.PerformanceLevel);
                     entries.Add(entry);
                 }
@@ -56,17 +62,12 @@ public class VideoLibraryService
 
         var imported = new List<VideoEntry>();
         var duplicateCount = 0;
-        var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v"
-        };
-
-        var existingFingerprints = BuildFingerprintIndex(storageFolder, videoExtensions);
+        var existingFingerprints = BuildFingerprintIndex(storageFolder, SupportedVideoExtensions);
 
         foreach (var file in Directory.GetFiles(sourceFolder))
         {
             var extension = Path.GetExtension(file);
-            if (!videoExtensions.Contains(extension))
+            if (!SupportedVideoExtensions.Contains(extension))
             {
                 continue;
             }
@@ -295,6 +296,20 @@ public class VideoLibraryService
         }
 
         return fingerprints;
+    }
+
+    private static string ResolveVideoPath(string directory, string videoFileName)
+    {
+        var preferredPath = Path.Combine(directory, videoFileName);
+        if (File.Exists(preferredPath))
+        {
+            return preferredPath;
+        }
+
+        return Directory
+            .GetFiles(directory)
+            .FirstOrDefault(x => SupportedVideoExtensions.Contains(Path.GetExtension(x)))
+            ?? preferredPath;
     }
 
     private static string ComputeFileFingerprint(string filePath)
