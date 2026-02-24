@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Security.Cryptography;
 using VideoPostOrganizer.Models;
 
 namespace VideoPostOrganizer.Services;
@@ -6,6 +7,7 @@ namespace VideoPostOrganizer.Services;
 public class VideoLibraryService
 {
     private const string MetadataFileName = "metadata.json";
+    private const string CommonHashtagsFileName = "common-hashtags.json";
 
     public List<VideoEntry> LoadFromStorage(string storageFolder)
     {
@@ -29,6 +31,7 @@ public class VideoLibraryService
                 var entry = JsonSerializer.Deserialize<VideoEntry>(json);
                 if (entry != null)
                 {
+                    entry.PerformanceLevel = NormalizePerformanceLevel(entry.PerformanceLevel);
                     entries.Add(entry);
                 }
             }
@@ -41,7 +44,7 @@ public class VideoLibraryService
         return entries.OrderBy(x => x.VideoName).ToList();
     }
 
-    public List<VideoEntry> ImportVideos(string sourceFolder, string storageFolder)
+    public ImportResult ImportVideos(string sourceFolder, string storageFolder)
     {
         if (!Directory.Exists(sourceFolder))
         {
@@ -51,16 +54,26 @@ public class VideoLibraryService
         Directory.CreateDirectory(storageFolder);
 
         var imported = new List<VideoEntry>();
+        var duplicateCount = 0;
         var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v"
         };
+
+        var existingFingerprints = BuildFingerprintIndex(storageFolder, videoExtensions);
 
         foreach (var file in Directory.GetFiles(sourceFolder))
         {
             var extension = Path.GetExtension(file);
             if (!videoExtensions.Contains(extension))
             {
+                continue;
+            }
+
+            var sourceFingerprint = ComputeFileFingerprint(file);
+            if (existingFingerprints.Contains(sourceFingerprint))
+            {
+                duplicateCount++;
                 continue;
             }
 
@@ -89,14 +102,24 @@ public class VideoLibraryService
                 VideoFileName = Path.GetFileName(file),
                 VideoPath = targetVideoPath,
                 FolderPath = targetFolder,
-                DescriptionFiles = new List<string> { Path.GetFileName(descriptionFile) }
+                DescriptionFiles = new List<string> { Path.GetFileName(descriptionFile) },
+                PerformanceLevel = "Normal"
             };
 
             SaveMetadata(entry);
             imported.Add(entry);
+            existingFingerprints.Add(sourceFingerprint);
         }
 
-        return imported.OrderBy(x => x.VideoName).ToList();
+        return new ImportResult(imported.OrderBy(x => x.VideoName).ToList(), duplicateCount);
+    }
+
+    public void DeleteVideo(VideoEntry entry)
+    {
+        if (Directory.Exists(entry.FolderPath))
+        {
+            Directory.Delete(entry.FolderPath, recursive: true);
+        }
     }
 
     public void RenameVideo(VideoEntry entry, string newVideoName)
@@ -135,8 +158,49 @@ public class VideoLibraryService
     public void SaveMetadata(VideoEntry entry)
     {
         var metadataPath = Path.Combine(entry.FolderPath, MetadataFileName);
+        entry.PerformanceLevel = NormalizePerformanceLevel(entry.PerformanceLevel);
         var json = JsonSerializer.Serialize(entry, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(metadataPath, json);
+    }
+
+    public List<string> LoadCommonHashtags(string storageFolder)
+    {
+        var hashtagsPath = Path.Combine(storageFolder, CommonHashtagsFileName);
+        if (!File.Exists(hashtagsPath))
+        {
+            return new List<string>();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(hashtagsPath);
+            var tags = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+            return tags
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x)
+                .ToList();
+        }
+        catch
+        {
+            return new List<string>();
+        }
+    }
+
+    public void SaveCommonHashtags(string storageFolder, List<string> hashtags)
+    {
+        Directory.CreateDirectory(storageFolder);
+        var hashtagsPath = Path.Combine(storageFolder, CommonHashtagsFileName);
+        var normalized = hashtags
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+
+        var json = JsonSerializer.Serialize(normalized, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(hashtagsPath, json);
     }
 
     public string AddDescription(VideoEntry entry)
@@ -194,4 +258,67 @@ public class VideoLibraryService
 
         throw new IOException("Unable to generate a unique folder name for renamed video.");
     }
+
+    private static string NormalizePerformanceLevel(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "low" => "Low",
+            "high" => "High",
+            _ => "Normal"
+        };
+    }
+
+    private static HashSet<string> BuildFingerprintIndex(string storageFolder, HashSet<string> videoExtensions)
+    {
+        var fingerprints = new HashSet<string>(StringComparer.Ordinal);
+
+        if (!Directory.Exists(storageFolder))
+        {
+            return fingerprints;
+        }
+
+        foreach (var directory in Directory.GetDirectories(storageFolder))
+        {
+            var videoPath = Directory
+                .GetFiles(directory)
+                .FirstOrDefault(x => videoExtensions.Contains(Path.GetExtension(x)));
+
+            if (string.IsNullOrWhiteSpace(videoPath))
+            {
+                continue;
+            }
+
+            fingerprints.Add(ComputeFileFingerprint(videoPath));
+        }
+
+        return fingerprints;
+    }
+
+    private static string ComputeFileFingerprint(string filePath)
+    {
+        const int partialThresholdBytes = 64 * 1024 * 1024;
+        const int partialBytes = 4 * 1024 * 1024;
+
+        using var stream = File.OpenRead(filePath);
+        var fileLengthBytes = stream.Length;
+        using var sha = SHA256.Create();
+
+        if (fileLengthBytes > partialThresholdBytes)
+        {
+            var bufferSize = (int)Math.Min(partialBytes, fileLengthBytes);
+            var buffer = new byte[bufferSize];
+            var bytesRead = stream.Read(buffer, 0, buffer.Length);
+
+            sha.TransformBlock(buffer, 0, bytesRead, null, 0);
+            var lengthBytes = BitConverter.GetBytes(fileLengthBytes);
+            sha.TransformFinalBlock(lengthBytes, 0, lengthBytes.Length);
+            return Convert.ToHexString(sha.Hash!);
+        }
+
+        var fullHash = sha.ComputeHash(stream);
+        return Convert.ToHexString(fullHash);
+    }
 }
+
+public sealed record ImportResult(List<VideoEntry> ImportedEntries, int DuplicateCount);

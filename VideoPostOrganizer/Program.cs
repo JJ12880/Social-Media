@@ -1,5 +1,4 @@
 using System;
-using System.Windows.Forms;
 
 namespace VideoPostOrganizer;
 
@@ -8,7 +7,7 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
-        ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        System.Windows.Forms.ApplicationConfiguration.Initialize();
+        System.Windows.Forms.Application.Run(new MainForm());
     }
 }
