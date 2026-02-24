@@ -203,7 +203,7 @@ public class MainForm : Form
         {
             Width = 960,
             Height = 330,
-            FlowDirection = FlowDirection.LeftToRight,
+            FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight,
             WrapContents = false
         };
 
@@ -211,7 +211,7 @@ public class MainForm : Form
         {
             Width = 420,
             Height = 320,
-            FlowDirection = FlowDirection.TopDown,
+            FlowDirection = System.Windows.Forms.FlowDirection.TopDown,
             WrapContents = false,
             Padding = new Padding(8)
         };
@@ -297,11 +297,11 @@ public class MainForm : Form
         var entry = CurrentEntry;
         if (entry == null)
         {
-            MessageBox.Show("Select a video first.");
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
-        var answer = MessageBox.Show(
+        var answer = System.Windows.Forms.MessageBox.Show(
             $"Delete '{entry.VideoName}' from storage? This only deletes files in the storage folder.",
             "Delete Video",
             MessageBoxButtons.YesNo,
@@ -334,43 +334,11 @@ public class MainForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Delete failed: {ex.Message}");
+            System.Windows.Forms.MessageBox.Show($"Delete failed: {ex.Message}");
         }
     }
 
-    private void DeleteSelectedVideo()
-    {
-        var entry = CurrentEntry;
-        if (entry == null)
-        {
-            MessageBox.Show("Select a video first.");
-            return;
-        }
-
-        var answer = MessageBox.Show(
-            $"Delete '{entry.VideoName}' from storage? This only deletes files in the storage folder.",
-            "Delete Video",
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Warning);
-
-        if (answer != DialogResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            ClearPreview();
-            _service.DeleteVideo(entry);
-            _entries = _entries.Where(x => !x.FolderPath.Equals(entry.FolderPath, StringComparison.OrdinalIgnoreCase)).ToList();
-            RebindEntries();
-            LoadSelectedVideo();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Delete failed: {ex.Message}");
-        }
-    }
+   
 
     private void RenameSelectedVideo()
     {
@@ -633,14 +601,14 @@ public class MainForm : Form
     {
         if (string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
         {
-            MessageBox.Show("Load a storage folder first.");
+            System.Windows.Forms.MessageBox.Show("Load a storage folder first.");
             return;
         }
 
         var tag = NormalizeHashtag(_commonHashtagInput.Text);
         if (string.IsNullOrWhiteSpace(tag))
         {
-            MessageBox.Show("Enter a hashtag value.");
+            System.Windows.Forms.MessageBox.Show("Enter a hashtag value.");
             return;
         }
 
@@ -660,7 +628,7 @@ public class MainForm : Form
     {
         if (string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
         {
-            MessageBox.Show("Load a storage folder first.");
+            System.Windows.Forms.MessageBox.Show("Load a storage folder first.");
             return;
         }
 
@@ -681,7 +649,7 @@ public class MainForm : Form
         var selected = _commonHashtagsListBox.SelectedItems.Cast<string>().ToList();
         if (selected.Count == 0)
         {
-            MessageBox.Show("Select one or more common hashtags first.");
+            System.Windows.Forms.MessageBox.Show("Select one or more common hashtags first.");
             return;
         }
 
@@ -750,47 +718,10 @@ public class MainForm : Form
         return "Normal";
     }
 
-    private void SetPerformance(string? value)
-    {
-        switch (value?.Trim().ToLowerInvariant())
-        {
-            case "low":
-                _performanceLowRadio.Checked = true;
-                break;
-            case "high":
-                _performanceHighRadio.Checked = true;
-                break;
-            default:
-                _performanceNormalRadio.Checked = true;
-                break;
-        }
-    }
+   
+   
 
-    private static string NormalizeHashtag(string value)
-    {
-        var trimmed = value.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            return string.Empty;
-        }
-
-        return trimmed.StartsWith('#') ? trimmed : $"#{trimmed}";
-    }
-
-    private string GetPerformance()
-    {
-        if (_performanceLowRadio.Checked)
-        {
-            return "Low";
-        }
-
-        if (_performanceHighRadio.Checked)
-        {
-            return "High";
-        }
-
-        return "Normal";
-    }
+   
 
     private void SetPerformance(string? value)
     {
