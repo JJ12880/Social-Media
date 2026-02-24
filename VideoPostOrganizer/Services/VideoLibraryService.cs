@@ -123,13 +123,7 @@ public class VideoLibraryService
         }
     }
 
-    public void DeleteVideo(VideoEntry entry)
-    {
-        if (Directory.Exists(entry.FolderPath))
-        {
-            Directory.Delete(entry.FolderPath, recursive: true);
-        }
-    }
+   
 
     public void RenameVideo(VideoEntry entry, string newVideoName)
     {
@@ -277,6 +271,57 @@ public class VideoLibraryService
             _ => "Normal"
         };
     }
+    private static HashSet<string> BuildFingerprintIndex(string storageFolder, HashSet<string> videoExtensions)
+    {
+        var fingerprints = new HashSet<string>(StringComparer.Ordinal);
+
+        if (!Directory.Exists(storageFolder))
+        {
+            return fingerprints;
+        }
+
+        foreach (var directory in Directory.GetDirectories(storageFolder))
+        {
+            var videoPath = Directory
+                .GetFiles(directory)
+                .FirstOrDefault(x => videoExtensions.Contains(Path.GetExtension(x)));
+
+            if (string.IsNullOrWhiteSpace(videoPath))
+            {
+                continue;
+            }
+
+            fingerprints.Add(ComputeFileFingerprint(videoPath));
+        }
+
+        return fingerprints;
+    }
+
+    private static string ComputeFileFingerprint(string filePath)
+    {
+        const int partialThresholdBytes = 64 * 1024 * 1024;
+        const int partialBytes = 4 * 1024 * 1024;
+
+        using var stream = File.OpenRead(filePath);
+        var fileLengthBytes = stream.Length;
+        using var sha = SHA256.Create();
+
+        if (fileLengthBytes > partialThresholdBytes)
+        {
+            var bufferSize = (int)Math.Min(partialBytes, fileLengthBytes);
+            var buffer = new byte[bufferSize];
+            var bytesRead = stream.Read(buffer, 0, buffer.Length);
+
+            sha.TransformBlock(buffer, 0, bytesRead, null, 0);
+            var lengthBytes = BitConverter.GetBytes(fileLengthBytes);
+            sha.TransformFinalBlock(lengthBytes, 0, lengthBytes.Length);
+            return Convert.ToHexString(sha.Hash!);
+        }
+
+        var fullHash = sha.ComputeHash(stream);
+        return Convert.ToHexString(fullHash);
+    }
 }
+
 
 public sealed record ImportResult(List<VideoEntry> ImportedEntries, int DuplicateCount);
