@@ -1,0 +1,86 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="VideoPostOrganizer.MainWindow"
+        Title="Social Media Video Organizer"
+        Width="1200"
+        Height="800">
+  <Grid RowDefinitions="Auto,*" Margin="10" ColumnDefinitions="*">
+    <Grid Row="0" ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
+      <TextBlock Text="Storage folders:" VerticalAlignment="Center" />
+      <TextBox Grid.Column="1" Text="{Binding StorageFoldersText}" />
+      <Button Grid.Column="2" Content="Add Storage" Click="OnAddStorageClick" />
+      <Button Grid.Column="3" Content="Load Storage" Click="OnLoadStorageClick" />
+
+      <TextBlock Grid.Row="1" Text="Source videos:" VerticalAlignment="Center" />
+      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SourceFolderText}" />
+      <Button Grid.Row="1" Grid.Column="2" Content="Browse" Click="OnBrowseSourceClick" />
+      <Button Grid.Row="1" Grid.Column="3" Content="Import Videos" Click="OnImportClick" />
+    </Grid>
+
+    <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="320,*">
+      <StackPanel Grid.Column="0" Spacing="8">
+        <TextBlock Text="Videos" FontWeight="Bold" />
+        <ListBox Height="560"
+                 ItemsSource="{Binding Entries}"
+                 SelectedItem="{Binding SelectedEntry}">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="{Binding VideoName}" />
+                <TextBlock Text="(" />
+                <TextBlock Text="{Binding PerformanceLevel}" />
+                <TextBlock Text=")" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Rename" Click="OnRenameClick" />
+          <Button Content="Delete" Click="OnDeleteClick" />
+        </StackPanel>
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Spacing="8">
+        <TextBlock Text="Video Preview" FontWeight="Bold" />
+        <Border Height="180" BorderThickness="1" BorderBrush="Gray" Padding="8">
+          <TextBlock TextWrapping="Wrap" Text="{Binding PreviewStatus}" />
+        </Border>
+        <Button Content="Open Video Externally" Width="170" Click="OnOpenExternallyClick" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="Description file:" VerticalAlignment="Center" />
+          <ComboBox Width="250"
+                    ItemsSource="{Binding DescriptionFiles}"
+                    SelectedItem="{Binding SelectedDescriptionFile}" />
+          <Button Content="Add Description" Click="OnAddDescriptionClick" />
+        </StackPanel>
+
+        <TextBox AcceptsReturn="True" Height="150" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
+
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="Performance:" VerticalAlignment="Center" />
+          <ComboBox Width="140" ItemsSource="{Binding PerformanceLevels}" SelectedItem="{Binding PerformanceLevel}" />
+
+          <TextBlock Text="Last post:" VerticalAlignment="Center" />
+          <DatePicker SelectedDate="{Binding LastPostDate}" Width="150" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="Tags:" VerticalAlignment="Center" />
+          <TextBox Width="450" Text="{Binding TagsText}" />
+        </StackPanel>
+
+        <TextBlock Text="Common hashtags" FontWeight="Bold" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBox Width="180" Text="{Binding NewHashtag}" />
+          <Button Content="Add Hashtag" Click="OnAddHashtagClick" />
+          <Button Content="Remove Selected" Click="OnRemoveHashtagClick" />
+          <Button Content="Append Selected To Description" Click="OnAppendHashtagClick" />
+        </StackPanel>
+        <ListBox x:Name="CommonHashtagsList" Height="90" SelectionMode="Multiple" ItemsSource="{Binding CommonHashtags}" />
+
+        <Button Content="Save Selected Video" Width="160" Click="OnSaveClick" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>
