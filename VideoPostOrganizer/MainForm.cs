@@ -3,6 +3,7 @@ using System.Windows.Media;
 using System.Windows.Forms.Integration;
 using VideoPostOrganizer.Models;
 using VideoPostOrganizer.Services;
+using System.IO;
 
 namespace VideoPostOrganizer;
 
@@ -39,8 +40,8 @@ public class MainForm : Form
     private readonly ElementHost _videoPreviewHost = new() { Width = 520, Height = 280 };
     private readonly System.Windows.Controls.MediaElement _mediaElement = new()
     {
-        LoadedBehavior = MediaState.Manual,
-        UnloadedBehavior = MediaState.Stop,
+        LoadedBehavior = System.Windows.Controls.MediaState.Manual,
+        UnloadedBehavior = System.Windows.Controls.MediaState.Stop,
         Stretch = Stretch.Uniform
     };
 
@@ -187,7 +188,7 @@ public class MainForm : Form
         {
             Dock = DockStyle.Left,
             Width = 380,
-            FlowDirection = FlowDirection.TopDown,
+            FlowDirection = System.Windows.Forms.FlowDirection.TopDown,
             Padding = new Padding(8)
         };
 
@@ -258,7 +259,7 @@ public class MainForm : Form
         var rightPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
+            FlowDirection = System.Windows.Forms.FlowDirection.TopDown,
             WrapContents = false,
             AutoScroll = true,
             Padding = new Padding(8)
@@ -309,6 +310,7 @@ public class MainForm : Form
     {
         if (e.ColumnIndex < 0)
         {
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
@@ -378,12 +380,14 @@ public class MainForm : Form
         }
     }
 
+   
+
     private void RenameSelectedVideo()
     {
         var entry = CurrentEntry;
         if (entry == null)
         {
-            MessageBox.Show("Select a video first.");
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
@@ -430,11 +434,11 @@ public class MainForm : Form
         }
         catch (IOException ex)
         {
-            MessageBox.Show($"Rename failed: {ex.Message} Close preview and retry.");
+            System.Windows.Forms.MessageBox.Show($"Rename failed: {ex.Message} Close preview and retry.");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Rename failed: {ex.Message}");
+            System.Windows.Forms.MessageBox.Show($"Rename failed: {ex.Message}");
         }
     }
 
@@ -537,7 +541,7 @@ public class MainForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Import failed: {ex.Message}");
+            System.Windows.Forms.MessageBox.Show($"Import failed: {ex.Message}");
         }
     }
 
@@ -666,7 +670,7 @@ public class MainForm : Form
         var entry = CurrentEntry;
         if (entry == null)
         {
-            MessageBox.Show("Select a video first.");
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
@@ -763,7 +767,7 @@ public class MainForm : Form
 
         if (entry == null)
         {
-            MessageBox.Show("Select a video first.");
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
@@ -781,7 +785,87 @@ public class MainForm : Form
 
         _service.SaveMetadata(entry);
         RebindEntries();
-        MessageBox.Show("Saved.");
+        System.Windows.Forms.MessageBox.Show("Saved.");
+    }
+
+    private string GetPerformance()
+    {
+        if (_performanceLowRadio.Checked)
+        {
+            return "Low";
+        }
+
+        if (_performanceHighRadio.Checked)
+        {
+            return "High";
+        }
+
+        return "Normal";
+    }
+
+   
+   
+
+   
+
+    private void SetPerformance(string? value)
+    {
+        _isUpdatingUi = true;
+        try
+        {
+            switch (value?.Trim().ToLowerInvariant())
+            {
+                case "low":
+                    _performanceLowRadio.Checked = true;
+                    break;
+                case "high":
+                    _performanceHighRadio.Checked = true;
+                    break;
+                default:
+                    _performanceNormalRadio.Checked = true;
+                    break;
+            }
+        }
+        finally
+        {
+            _isUpdatingUi = false;
+        }
+    }
+
+    private void PerformanceRadioOnCheckedChanged(object? sender, EventArgs e)
+    {
+        if (_isUpdatingUi || sender is not RadioButton radio || !radio.Checked)
+        {
+            return;
+        }
+
+        var entry = CurrentEntry;
+        if (entry == null)
+        {
+            return;
+        }
+
+        var newPerformance = GetPerformance();
+        if (string.Equals(entry.PerformanceLevel, newPerformance, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        entry.PerformanceLevel = newPerformance;
+        _service.SaveMetadata(entry);
+        RebindEntries();
+        SelectEntry(entry);
+    }
+
+    private static string NormalizeHashtag(string value)
+    {
+        var trimmed = value.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return string.Empty;
+        }
+
+        return trimmed.StartsWith('#') ? trimmed : $"#{trimmed}";
     }
 
     private string GetPerformance()
