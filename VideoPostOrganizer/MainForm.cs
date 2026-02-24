@@ -3,6 +3,7 @@ using System.Windows.Media;
 using System.Windows.Forms.Integration;
 using VideoPostOrganizer.Models;
 using VideoPostOrganizer.Services;
+using WinFormsApplication = System.Windows.Forms.Application;
 
 namespace VideoPostOrganizer;
 
@@ -217,7 +218,7 @@ public class MainForm : Form
         {
             ClearPreview();
             _mediaElement.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
-            Application.DoEvents();
+            WinFormsApplication.DoEvents();
 
             _service.RenameVideo(entry, nameTextBox.Text);
             _entries = _entries.OrderBy(x => x.VideoName).ToList();
