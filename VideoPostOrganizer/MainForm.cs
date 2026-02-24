@@ -3,7 +3,7 @@ using System.Windows.Media;
 using System.Windows.Forms.Integration;
 using VideoPostOrganizer.Models;
 using VideoPostOrganizer.Services;
-using WinFormsApplication = System.Windows.Forms.Application;
+using System.IO;
 
 namespace VideoPostOrganizer;
 
@@ -25,8 +25,8 @@ public class MainForm : Form
     private readonly ElementHost _videoPreviewHost = new() { Width = 520, Height = 280 };
     private readonly System.Windows.Controls.MediaElement _mediaElement = new()
     {
-        LoadedBehavior = MediaState.Manual,
-        UnloadedBehavior = MediaState.Stop,
+        LoadedBehavior = System.Windows.Controls.MediaState.Manual,
+        UnloadedBehavior = System.Windows.Controls.MediaState.Stop,
         Stretch = Stretch.Uniform
     };
 
@@ -111,7 +111,7 @@ public class MainForm : Form
         {
             Dock = DockStyle.Left,
             Width = 380,
-            FlowDirection = FlowDirection.TopDown,
+            FlowDirection = System.Windows.Forms.FlowDirection.TopDown,
             Padding = new Padding(8)
         };
 
@@ -142,7 +142,7 @@ public class MainForm : Form
         var rightPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
+            FlowDirection = System.Windows.Forms.FlowDirection.TopDown,
             WrapContents = false,
             AutoScroll = true,
             Padding = new Padding(8)
@@ -184,7 +184,7 @@ public class MainForm : Form
         var entry = CurrentEntry;
         if (entry == null)
         {
-            MessageBox.Show("Select a video first.");
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
@@ -218,7 +218,7 @@ public class MainForm : Form
         {
             ClearPreview();
             _mediaElement.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
-            WinFormsApplication.DoEvents();
+            System.Windows.Forms.Application.DoEvents();
 
             _service.RenameVideo(entry, nameTextBox.Text);
             _entries = _entries.OrderBy(x => x.VideoName).ToList();
@@ -234,11 +234,11 @@ public class MainForm : Form
         }
         catch (IOException ex)
         {
-            MessageBox.Show($"Rename failed: {ex.Message} Close preview and retry.");
+            System.Windows.Forms.MessageBox.Show($"Rename failed: {ex.Message} Close preview and retry.");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Rename failed: {ex.Message}");
+            System.Windows.Forms.MessageBox.Show($"Rename failed: {ex.Message}");
         }
     }
 
@@ -267,7 +267,7 @@ public class MainForm : Form
     {
         if (string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
         {
-            MessageBox.Show("Select a storage folder first.");
+            System.Windows.Forms.MessageBox.Show("Select a storage folder first.");
             return;
         }
 
@@ -279,7 +279,7 @@ public class MainForm : Form
     {
         if (string.IsNullOrWhiteSpace(_sourceFolderTextBox.Text) || string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
         {
-            MessageBox.Show("Choose source and storage folders first.");
+            System.Windows.Forms.MessageBox.Show("Choose source and storage folders first.");
             return;
         }
 
@@ -294,11 +294,11 @@ public class MainForm : Form
 
             _entries = existingByFolder.Values.OrderBy(x => x.VideoName).ToList();
             RebindEntries();
-            MessageBox.Show($"Imported {imported.Count} videos.");
+            System.Windows.Forms.MessageBox.Show($"Imported {imported.Count} videos.");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Import failed: {ex.Message}");
+            System.Windows.Forms.MessageBox.Show($"Import failed: {ex.Message}");
         }
     }
 
@@ -396,7 +396,7 @@ public class MainForm : Form
         var entry = CurrentEntry;
         if (entry == null)
         {
-            MessageBox.Show("Select a video first.");
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
@@ -413,7 +413,7 @@ public class MainForm : Form
 
         if (entry == null)
         {
-            MessageBox.Show("Select a video first.");
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
@@ -432,6 +432,6 @@ public class MainForm : Form
 
         _service.SaveMetadata(entry);
         RebindEntries();
-        MessageBox.Show("Saved.");
+        System.Windows.Forms.MessageBox.Show("Saved.");
     }
 }
