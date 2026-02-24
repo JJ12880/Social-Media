@@ -9,8 +9,7 @@ public class VideoEntry
     public required string VideoPath { get; set; }
     public required string FolderPath { get; set; }
     public List<string> DescriptionFiles { get; set; } = new();
-    public string Category { get; set; } = string.Empty;
-    public string PerformanceNotes { get; set; } = string.Empty;
+    public string PerformanceLevel { get; set; } = "Normal";
     public List<string> Tags { get; set; } = new();
     public DateTime? LastPostDate { get; set; }
 
