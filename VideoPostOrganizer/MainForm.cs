@@ -15,11 +15,15 @@ public class MainForm : Form
     private readonly ListBox _videoListBox = new() { Width = 360, Height = 420 };
     private readonly ComboBox _descriptionSelector = new() { Width = 280, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _descriptionEditor = new() { Multiline = true, ScrollBars = ScrollBars.Vertical, Width = 520, Height = 170 };
-    private readonly TextBox _categoryTextBox = new() { Width = 250 };
-    private readonly TextBox _performanceTextBox = new() { Width = 250 };
     private readonly TextBox _tagsTextBox = new() { Width = 520 };
+    private readonly ListBox _commonHashtagsListBox = new() { Width = 520, Height = 90, SelectionMode = SelectionMode.MultiExtended };
+    private readonly TextBox _commonHashtagInput = new() { Width = 360 };
     private readonly DateTimePicker _lastPostDatePicker = new() { Width = 200, Format = DateTimePickerFormat.Short, ShowCheckBox = true };
     private readonly Label _previewStatusLabel = new() { AutoSize = true, Text = "Select a video to preview." };
+
+    private readonly RadioButton _performanceLowRadio = new() { Text = "Low", AutoSize = true };
+    private readonly RadioButton _performanceNormalRadio = new() { Text = "Normal", AutoSize = true, Checked = true };
+    private readonly RadioButton _performanceHighRadio = new() { Text = "High", AutoSize = true };
 
     private readonly ElementHost _videoPreviewHost = new() { Width = 520, Height = 280 };
     private readonly System.Windows.Controls.MediaElement _mediaElement = new()
@@ -61,6 +65,15 @@ public class MainForm : Form
         var saveButton = new Button { Text = "Save Selected Video" };
         saveButton.Click += (_, _) => SaveCurrentVideo();
 
+        var addCommonHashtagButton = new Button { Text = "Add Hashtag" };
+        addCommonHashtagButton.Click += (_, _) => AddCommonHashtag();
+
+        var removeCommonHashtagButton = new Button { Text = "Remove Selected" };
+        removeCommonHashtagButton.Click += (_, _) => RemoveSelectedCommonHashtags();
+
+        var appendCommonHashtagButton = new Button { Text = "Append Selected to Description" };
+        appendCommonHashtagButton.Click += (_, _) => AppendSelectedCommonHashtagsToDescription();
+
         var playButton = new Button { Text = "Play" };
         playButton.Click += (_, _) => _mediaElement.Play();
 
@@ -70,14 +83,18 @@ public class MainForm : Form
         var stopButton = new Button { Text = "Stop" };
         stopButton.Click += (_, _) => _mediaElement.Stop();
 
-        var renameMenu = new ContextMenuStrip();
+        var videoMenu = new ContextMenuStrip();
         var renameMenuItem = new ToolStripMenuItem("Rename");
         renameMenuItem.Click += (_, _) => RenameSelectedVideo();
-        renameMenu.Items.Add(renameMenuItem);
+        videoMenu.Items.Add(renameMenuItem);
+
+        var deleteMenuItem = new ToolStripMenuItem("Delete from Storage");
+        deleteMenuItem.Click += (_, _) => DeleteSelectedVideo();
+        videoMenu.Items.Add(deleteMenuItem);
 
         _videoListBox.DisplayMember = nameof(VideoEntry.DisplayName);
         _videoListBox.DataSource = _entriesBinding;
-        _videoListBox.ContextMenuStrip = renameMenu;
+        _videoListBox.ContextMenuStrip = videoMenu;
         _videoListBox.MouseDown += VideoListBoxOnMouseDown;
         _videoListBox.SelectedIndexChanged += (_, _) => LoadSelectedVideo();
         _descriptionSelector.SelectedIndexChanged += (_, _) => LoadSelectedDescription();
@@ -128,11 +145,20 @@ public class MainForm : Form
         descriptionRow.Controls.Add(_descriptionSelector);
         descriptionRow.Controls.Add(addDescriptionButton);
 
-        var categoryRow = new FlowLayoutPanel { Width = 700, Height = 38 };
-        categoryRow.Controls.Add(new Label { Text = "Category:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
-        categoryRow.Controls.Add(_categoryTextBox);
-        categoryRow.Controls.Add(new Label { Text = "Performance:", Width = 90, TextAlign = ContentAlignment.MiddleLeft });
-        categoryRow.Controls.Add(_performanceTextBox);
+        var performanceRow = new FlowLayoutPanel { Width = 700, Height = 38 };
+        performanceRow.Controls.Add(new Label { Text = "Performance:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
+        performanceRow.Controls.Add(_performanceLowRadio);
+        performanceRow.Controls.Add(_performanceNormalRadio);
+        performanceRow.Controls.Add(_performanceHighRadio);
+
+        var hashtagInputRow = new FlowLayoutPanel { Width = 700, Height = 38 };
+        hashtagInputRow.Controls.Add(new Label { Text = "Common hashtags:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
+        hashtagInputRow.Controls.Add(_commonHashtagInput);
+        hashtagInputRow.Controls.Add(addCommonHashtagButton);
+        hashtagInputRow.Controls.Add(removeCommonHashtagButton);
+
+        var hashtagActionsRow = new FlowLayoutPanel { Width = 700, Height = 38 };
+        hashtagActionsRow.Controls.Add(appendCommonHashtagButton);
 
         var dateRow = new FlowLayoutPanel { Width = 700, Height = 38 };
         dateRow.Controls.Add(new Label { Text = "Last post date:", Width = 100, TextAlign = ContentAlignment.MiddleLeft });
@@ -153,7 +179,11 @@ public class MainForm : Form
         rightPanel.Controls.Add(descriptionRow);
         rightPanel.Controls.Add(new Label { Text = "Description text", AutoSize = true });
         rightPanel.Controls.Add(_descriptionEditor);
-        rightPanel.Controls.Add(categoryRow);
+        rightPanel.Controls.Add(new Label { Text = "Common Hashtags", AutoSize = true });
+        rightPanel.Controls.Add(hashtagInputRow);
+        rightPanel.Controls.Add(_commonHashtagsListBox);
+        rightPanel.Controls.Add(hashtagActionsRow);
+        rightPanel.Controls.Add(performanceRow);
         rightPanel.Controls.Add(new Label { Text = "Tags (comma-separated)", AutoSize = true });
         rightPanel.Controls.Add(_tagsTextBox);
         rightPanel.Controls.Add(dateRow);
@@ -175,6 +205,40 @@ public class MainForm : Form
         if (index >= 0)
         {
             _videoListBox.SelectedIndex = index;
+        }
+    }
+
+    private void DeleteSelectedVideo()
+    {
+        var entry = CurrentEntry;
+        if (entry == null)
+        {
+            MessageBox.Show("Select a video first.");
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            $"Delete '{entry.VideoName}' from storage? This only deletes files in the storage folder.",
+            "Delete Video",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning);
+
+        if (answer != DialogResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            ClearPreview();
+            _service.DeleteVideo(entry);
+            _entries = _entries.Where(x => !x.FolderPath.Equals(entry.FolderPath, StringComparison.OrdinalIgnoreCase)).ToList();
+            RebindEntries();
+            LoadSelectedVideo();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Delete failed: {ex.Message}");
         }
     }
 
@@ -217,7 +281,7 @@ public class MainForm : Form
         {
             ClearPreview();
             _mediaElement.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
-            Application.DoEvents();
+            System.Windows.Forms.Application.DoEvents();
 
             _service.RenameVideo(entry, nameTextBox.Text);
             _entries = _entries.OrderBy(x => x.VideoName).ToList();
@@ -271,6 +335,8 @@ public class MainForm : Form
         }
 
         _entries = _service.LoadFromStorage(_storageFolderTextBox.Text);
+        var commonTags = _service.LoadCommonHashtags(_storageFolderTextBox.Text);
+        _commonHashtagsListBox.DataSource = commonTags;
         RebindEntries();
     }
 
@@ -316,8 +382,7 @@ public class MainForm : Form
         {
             _descriptionSelector.DataSource = null;
             _descriptionEditor.Text = string.Empty;
-            _categoryTextBox.Text = string.Empty;
-            _performanceTextBox.Text = string.Empty;
+            _performanceNormalRadio.Checked = true;
             _tagsTextBox.Text = string.Empty;
             _lastPostDatePicker.Checked = false;
             ClearPreview();
@@ -326,8 +391,7 @@ public class MainForm : Form
 
         _descriptionSelector.DataSource = null;
         _descriptionSelector.DataSource = entry.DescriptionFiles.OrderBy(x => x).ToList();
-        _categoryTextBox.Text = entry.Category;
-        _performanceTextBox.Text = entry.PerformanceNotes;
+        SetPerformance(entry.PerformanceLevel);
         _tagsTextBox.Text = string.Join(", ", entry.Tags);
 
         if (entry.LastPostDate.HasValue)
@@ -405,6 +469,84 @@ public class MainForm : Form
         _descriptionSelector.SelectedItem = newDescription;
     }
 
+    private void AddCommonHashtag()
+    {
+        if (string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
+        {
+            MessageBox.Show("Load a storage folder first.");
+            return;
+        }
+
+        var tag = NormalizeHashtag(_commonHashtagInput.Text);
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            MessageBox.Show("Enter a hashtag value.");
+            return;
+        }
+
+        var existing = (_commonHashtagsListBox.DataSource as List<string>) ?? new List<string>();
+        if (!existing.Contains(tag, StringComparer.OrdinalIgnoreCase))
+        {
+            existing.Add(tag);
+        }
+
+        var updated = existing.OrderBy(x => x).ToList();
+        _commonHashtagsListBox.DataSource = updated;
+        _service.SaveCommonHashtags(_storageFolderTextBox.Text, updated);
+        _commonHashtagInput.Text = string.Empty;
+    }
+
+    private void RemoveSelectedCommonHashtags()
+    {
+        if (string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
+        {
+            MessageBox.Show("Load a storage folder first.");
+            return;
+        }
+
+        var existing = (_commonHashtagsListBox.DataSource as List<string>) ?? new List<string>();
+        var selected = _commonHashtagsListBox.SelectedItems.Cast<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        var updated = existing.Where(x => !selected.Contains(x)).OrderBy(x => x).ToList();
+        _commonHashtagsListBox.DataSource = updated;
+        _service.SaveCommonHashtags(_storageFolderTextBox.Text, updated);
+    }
+
+    private void AppendSelectedCommonHashtagsToDescription()
+    {
+        var selected = _commonHashtagsListBox.SelectedItems.Cast<string>().ToList();
+        if (selected.Count == 0)
+        {
+            MessageBox.Show("Select one or more common hashtags first.");
+            return;
+        }
+
+        var existingWords = _descriptionEditor.Text
+            .Split(new[] { ' ', '\r', '\n', '\t', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var toAppend = selected
+            .Select(NormalizeHashtag)
+            .Where(x => !string.IsNullOrWhiteSpace(x) && !existingWords.Contains(x))
+            .ToList();
+
+        if (toAppend.Count == 0)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_descriptionEditor.Text) && !_descriptionEditor.Text.EndsWith(' '))
+        {
+            _descriptionEditor.AppendText(" ");
+        }
+
+        _descriptionEditor.AppendText(string.Join(" ", toAppend));
+    }
+
     private void SaveCurrentVideo()
     {
         var entry = CurrentEntry;
@@ -421,8 +563,7 @@ public class MainForm : Form
             _service.SaveDescription(entry, selectedDescription, _descriptionEditor.Text);
         }
 
-        entry.Category = _categoryTextBox.Text.Trim();
-        entry.PerformanceNotes = _performanceTextBox.Text.Trim();
+        entry.PerformanceLevel = GetPerformance();
         entry.Tags = _tagsTextBox.Text
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -432,5 +573,47 @@ public class MainForm : Form
         _service.SaveMetadata(entry);
         RebindEntries();
         MessageBox.Show("Saved.");
+    }
+
+    private string GetPerformance()
+    {
+        if (_performanceLowRadio.Checked)
+        {
+            return "Low";
+        }
+
+        if (_performanceHighRadio.Checked)
+        {
+            return "High";
+        }
+
+        return "Normal";
+    }
+
+    private void SetPerformance(string? value)
+    {
+        switch (value?.Trim().ToLowerInvariant())
+        {
+            case "low":
+                _performanceLowRadio.Checked = true;
+                break;
+            case "high":
+                _performanceHighRadio.Checked = true;
+                break;
+            default:
+                _performanceNormalRadio.Checked = true;
+                break;
+        }
+    }
+
+    private static string NormalizeHashtag(string value)
+    {
+        var trimmed = value.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return string.Empty;
+        }
+
+        return trimmed.StartsWith('#') ? trimmed : $"#{trimmed}";
     }
 }
