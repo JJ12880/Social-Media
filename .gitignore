@@ -1,0 +1,6 @@
+
+*.vs
+VideoPostOrganizer/bin/*
+
+VideoPostOrganizer/obj/*
+*.user
