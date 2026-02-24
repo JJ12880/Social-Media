@@ -4,3 +4,7 @@ VideoPostOrganizer/bin/*
 
 VideoPostOrganizer/obj/*
 *.user
+
+VideoPostOrganizer.sln
+
+*.sln
