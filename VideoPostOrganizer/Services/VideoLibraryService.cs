@@ -6,6 +6,7 @@ namespace VideoPostOrganizer.Services;
 public class VideoLibraryService
 {
     private const string MetadataFileName = "metadata.json";
+    private const string CommonHashtagsFileName = "common-hashtags.json";
 
     public List<VideoEntry> LoadFromStorage(string storageFolder)
     {
@@ -29,6 +30,7 @@ public class VideoLibraryService
                 var entry = JsonSerializer.Deserialize<VideoEntry>(json);
                 if (entry != null)
                 {
+                    entry.PerformanceLevel = NormalizePerformanceLevel(entry.PerformanceLevel);
                     entries.Add(entry);
                 }
             }
@@ -89,7 +91,8 @@ public class VideoLibraryService
                 VideoFileName = Path.GetFileName(file),
                 VideoPath = targetVideoPath,
                 FolderPath = targetFolder,
-                DescriptionFiles = new List<string> { Path.GetFileName(descriptionFile) }
+                DescriptionFiles = new List<string> { Path.GetFileName(descriptionFile) },
+                PerformanceLevel = "Normal"
             };
 
             SaveMetadata(entry);
@@ -97,6 +100,14 @@ public class VideoLibraryService
         }
 
         return imported.OrderBy(x => x.VideoName).ToList();
+    }
+
+    public void DeleteVideo(VideoEntry entry)
+    {
+        if (Directory.Exists(entry.FolderPath))
+        {
+            Directory.Delete(entry.FolderPath, recursive: true);
+        }
     }
 
     public void RenameVideo(VideoEntry entry, string newVideoName)
@@ -135,8 +146,49 @@ public class VideoLibraryService
     public void SaveMetadata(VideoEntry entry)
     {
         var metadataPath = Path.Combine(entry.FolderPath, MetadataFileName);
+        entry.PerformanceLevel = NormalizePerformanceLevel(entry.PerformanceLevel);
         var json = JsonSerializer.Serialize(entry, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(metadataPath, json);
+    }
+
+    public List<string> LoadCommonHashtags(string storageFolder)
+    {
+        var hashtagsPath = Path.Combine(storageFolder, CommonHashtagsFileName);
+        if (!File.Exists(hashtagsPath))
+        {
+            return new List<string>();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(hashtagsPath);
+            var tags = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+            return tags
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x)
+                .ToList();
+        }
+        catch
+        {
+            return new List<string>();
+        }
+    }
+
+    public void SaveCommonHashtags(string storageFolder, List<string> hashtags)
+    {
+        Directory.CreateDirectory(storageFolder);
+        var hashtagsPath = Path.Combine(storageFolder, CommonHashtagsFileName);
+        var normalized = hashtags
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+
+        var json = JsonSerializer.Serialize(normalized, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(hashtagsPath, json);
     }
 
     public string AddDescription(VideoEntry entry)
@@ -193,5 +245,15 @@ public class VideoLibraryService
         }
 
         throw new IOException("Unable to generate a unique folder name for renamed video.");
+    }
+
+    private static string NormalizePerformanceLevel(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "low" => "Low",
+            "high" => "High",
+            _ => "Normal"
+        };
     }
 }
