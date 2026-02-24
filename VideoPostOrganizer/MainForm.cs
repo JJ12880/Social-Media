@@ -47,6 +47,18 @@ public class MainForm : Form
 
     private readonly BindingSource _entriesBinding = new();
     private List<VideoEntry> _entries = new();
+    private readonly List<string> _storageFolders = new();
+    private readonly DataGridView _bulkUploadGrid = new()
+    {
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        AutoGenerateColumns = false,
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+        MultiSelect = false,
+        AllowUserToAddRows = false,
+        AllowUserToDeleteRows = false,
+        RowHeadersVisible = false
+    };
     private bool _showThumbnailOnOpen;
     private bool _isUpdatingUi;
     private string _sortColumn = nameof(VideoEntry.VideoName);
@@ -62,8 +74,8 @@ public class MainForm : Form
         _videoPreviewHost.Child = _mediaElement;
         _mediaElement.MediaOpened += MediaElementOnMediaOpened;
 
-        var browseStorageButton = new Button { Text = "Browse..." };
-        browseStorageButton.Click += (_, _) => BrowseFolder(_storageFolderTextBox);
+        var browseStorageButton = new Button { Text = "Add Storage..." };
+        browseStorageButton.Click += (_, _) => AddStorageFolder();
 
         var loadStorageButton = new Button { Text = "Load Storage" };
         loadStorageButton.Click += (_, _) => LoadStorage();
@@ -129,6 +141,20 @@ public class MainForm : Form
         _videoGrid.SelectionChanged += (_, _) => LoadSelectedVideo();
         _videoGrid.ColumnHeaderMouseClick += VideoGridOnColumnHeaderMouseClick;
 
+        _bulkUploadGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            DataPropertyName = nameof(VideoEntry.VideoName),
+            HeaderText = "Video",
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+        });
+        _bulkUploadGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            DataPropertyName = nameof(VideoEntry.PerformanceLevel),
+            HeaderText = "Performance",
+            Width = 110
+        });
+        _bulkUploadGrid.DataSource = _entriesBinding;
+
         _performanceLowRadio.CheckedChanged += PerformanceRadioOnCheckedChanged;
         _performanceNormalRadio.CheckedChanged += PerformanceRadioOnCheckedChanged;
         _performanceHighRadio.CheckedChanged += PerformanceRadioOnCheckedChanged;
@@ -148,7 +174,7 @@ public class MainForm : Form
         topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        topPanel.Controls.Add(new Label { Text = "Storage folder:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        topPanel.Controls.Add(new Label { Text = "Storage folders:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
         topPanel.Controls.Add(_storageFolderTextBox, 1, 0);
         topPanel.Controls.Add(browseStorageButton, 2, 0);
         topPanel.Controls.Add(loadStorageButton, 3, 0);
@@ -203,7 +229,7 @@ public class MainForm : Form
         {
             Width = 960,
             Height = 330,
-            FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight,
+            FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false
         };
 
@@ -211,7 +237,7 @@ public class MainForm : Form
         {
             Width = 420,
             Height = 320,
-            FlowDirection = System.Windows.Forms.FlowDirection.TopDown,
+            FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             Padding = new Padding(8)
         };
@@ -248,9 +274,24 @@ public class MainForm : Form
         rightPanel.Controls.Add(dateRow);
         rightPanel.Controls.Add(saveButton);
 
-        Controls.Add(rightPanel);
-        Controls.Add(leftPanel);
-        Controls.Add(topPanel);
+        var organizerTab = new TabPage("Organizer");
+        organizerTab.Controls.Add(rightPanel);
+        organizerTab.Controls.Add(leftPanel);
+        organizerTab.Controls.Add(topPanel);
+
+        var bulkTab = new TabPage("Bulk Upload CSV");
+        bulkTab.Padding = new Padding(8);
+        bulkTab.Controls.Add(_bulkUploadGrid);
+
+        var tabControl = new TabControl
+        {
+            Dock = DockStyle.Fill
+        };
+
+        tabControl.TabPages.Add(organizerTab);
+        tabControl.TabPages.Add(bulkTab);
+
+        Controls.Add(tabControl);
     }
 
     private void VideoGridOnCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
@@ -269,6 +310,7 @@ public class MainForm : Form
     {
         if (e.ColumnIndex < 0)
         {
+            System.Windows.Forms.MessageBox.Show("Select a video first.");
             return;
         }
 
@@ -297,11 +339,11 @@ public class MainForm : Form
         var entry = CurrentEntry;
         if (entry == null)
         {
-            System.Windows.Forms.MessageBox.Show("Select a video first.");
+            MessageBox.Show("Select a video first.");
             return;
         }
 
-        var answer = System.Windows.Forms.MessageBox.Show(
+        var answer = MessageBox.Show(
             $"Delete '{entry.VideoName}' from storage? This only deletes files in the storage folder.",
             "Delete Video",
             MessageBoxButtons.YesNo,
@@ -334,7 +376,7 @@ public class MainForm : Form
         }
         catch (Exception ex)
         {
-            System.Windows.Forms.MessageBox.Show($"Delete failed: {ex.Message}");
+            MessageBox.Show($"Delete failed: {ex.Message}");
         }
     }
 
@@ -421,31 +463,72 @@ public class MainForm : Form
         }
     }
 
-    private void LoadStorage()
+    private void AddStorageFolder()
     {
-        if (string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
+        using var dialog = new FolderBrowserDialog();
+        if (dialog.ShowDialog() != DialogResult.OK)
         {
-            System.Windows.Forms.MessageBox.Show("Select a storage folder first.");
             return;
         }
 
-        _entries = _service.LoadFromStorage(_storageFolderTextBox.Text);
-        var commonTags = _service.LoadCommonHashtags(_storageFolderTextBox.Text);
+        var selected = dialog.SelectedPath;
+        if (_storageFolders.Contains(selected, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _storageFolders.Add(selected);
+        _storageFolderTextBox.Text = string.Join("; ", _storageFolders);
+    }
+
+    private List<string> GetStorageFoldersFromInput()
+    {
+        var fromInput = _storageFolderTextBox.Text
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return fromInput;
+    }
+
+    private string? PrimaryStorageFolder => _storageFolders.FirstOrDefault();
+
+    private void LoadStorage()
+    {
+        _storageFolders.Clear();
+        _storageFolders.AddRange(GetStorageFoldersFromInput());
+
+        if (_storageFolders.Count == 0)
+        {
+            MessageBox.Show("Select one or more storage folders first.");
+            return;
+        }
+
+        _entries = _storageFolders
+            .SelectMany(_service.LoadFromStorage)
+            .GroupBy(x => x.FolderPath, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.First())
+            .ToList();
+
+        var commonTags = _service.LoadCommonHashtags(PrimaryStorageFolder!);
         _commonHashtagsListBox.DataSource = commonTags;
         RebindEntries();
     }
 
     private void ImportVideos()
     {
-        if (string.IsNullOrWhiteSpace(_sourceFolderTextBox.Text) || string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
+        var storageFolder = PrimaryStorageFolder;
+        if (string.IsNullOrWhiteSpace(_sourceFolderTextBox.Text) || string.IsNullOrWhiteSpace(storageFolder))
         {
-            System.Windows.Forms.MessageBox.Show("Choose source and storage folders first.");
+            MessageBox.Show("Choose source folder and load at least one storage folder first.");
             return;
         }
 
         try
         {
-            var imported = _service.ImportVideos(_sourceFolderTextBox.Text, _storageFolderTextBox.Text);
+            var importResult = _service.ImportVideos(_sourceFolderTextBox.Text, storageFolder);
+            var imported = importResult.ImportedEntries;
             var existingByFolder = _entries.ToDictionary(x => x.FolderPath, StringComparer.OrdinalIgnoreCase);
             foreach (var item in imported)
             {
@@ -454,7 +537,7 @@ public class MainForm : Form
 
             _entries = existingByFolder.Values.OrderBy(x => x.VideoName).ToList();
             RebindEntries();
-            System.Windows.Forms.MessageBox.Show($"Imported {imported.Count} videos.");
+            MessageBox.Show($"Imported {imported.Count} videos. Skipped duplicates: {importResult.DuplicateCount}.");
         }
         catch (Exception ex)
         {
@@ -599,16 +682,17 @@ public class MainForm : Form
 
     private void AddCommonHashtag()
     {
-        if (string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
+        var storageFolder = PrimaryStorageFolder;
+        if (string.IsNullOrWhiteSpace(storageFolder))
         {
-            System.Windows.Forms.MessageBox.Show("Load a storage folder first.");
+            MessageBox.Show("Load a storage folder first.");
             return;
         }
 
         var tag = NormalizeHashtag(_commonHashtagInput.Text);
         if (string.IsNullOrWhiteSpace(tag))
         {
-            System.Windows.Forms.MessageBox.Show("Enter a hashtag value.");
+            MessageBox.Show("Enter a hashtag value.");
             return;
         }
 
@@ -620,15 +704,16 @@ public class MainForm : Form
 
         var updated = existing.OrderBy(x => x).ToList();
         _commonHashtagsListBox.DataSource = updated;
-        _service.SaveCommonHashtags(_storageFolderTextBox.Text, updated);
+        _service.SaveCommonHashtags(storageFolder, updated);
         _commonHashtagInput.Text = string.Empty;
     }
 
     private void RemoveSelectedCommonHashtags()
     {
-        if (string.IsNullOrWhiteSpace(_storageFolderTextBox.Text))
+        var storageFolder = PrimaryStorageFolder;
+        if (string.IsNullOrWhiteSpace(storageFolder))
         {
-            System.Windows.Forms.MessageBox.Show("Load a storage folder first.");
+            MessageBox.Show("Load a storage folder first.");
             return;
         }
 
@@ -641,7 +726,7 @@ public class MainForm : Form
 
         var updated = existing.Where(x => !selected.Contains(x)).OrderBy(x => x).ToList();
         _commonHashtagsListBox.DataSource = updated;
-        _service.SaveCommonHashtags(_storageFolderTextBox.Text, updated);
+        _service.SaveCommonHashtags(storageFolder, updated);
     }
 
     private void AppendSelectedCommonHashtagsToDescription()
@@ -649,7 +734,7 @@ public class MainForm : Form
         var selected = _commonHashtagsListBox.SelectedItems.Cast<string>().ToList();
         if (selected.Count == 0)
         {
-            System.Windows.Forms.MessageBox.Show("Select one or more common hashtags first.");
+            MessageBox.Show("Select one or more common hashtags first.");
             return;
         }
 
@@ -722,6 +807,81 @@ public class MainForm : Form
    
 
    
+
+    private void SetPerformance(string? value)
+    {
+        _isUpdatingUi = true;
+        try
+        {
+            switch (value?.Trim().ToLowerInvariant())
+            {
+                case "low":
+                    _performanceLowRadio.Checked = true;
+                    break;
+                case "high":
+                    _performanceHighRadio.Checked = true;
+                    break;
+                default:
+                    _performanceNormalRadio.Checked = true;
+                    break;
+            }
+        }
+        finally
+        {
+            _isUpdatingUi = false;
+        }
+    }
+
+    private void PerformanceRadioOnCheckedChanged(object? sender, EventArgs e)
+    {
+        if (_isUpdatingUi || sender is not RadioButton radio || !radio.Checked)
+        {
+            return;
+        }
+
+        var entry = CurrentEntry;
+        if (entry == null)
+        {
+            return;
+        }
+
+        var newPerformance = GetPerformance();
+        if (string.Equals(entry.PerformanceLevel, newPerformance, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        entry.PerformanceLevel = newPerformance;
+        _service.SaveMetadata(entry);
+        RebindEntries();
+        SelectEntry(entry);
+    }
+
+    private static string NormalizeHashtag(string value)
+    {
+        var trimmed = value.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return string.Empty;
+        }
+
+        return trimmed.StartsWith('#') ? trimmed : $"#{trimmed}";
+    }
+
+    private string GetPerformance()
+    {
+        if (_performanceLowRadio.Checked)
+        {
+            return "Low";
+        }
+
+        if (_performanceHighRadio.Checked)
+        {
+            return "High";
+        }
+
+        return "Normal";
+    }
 
     private void SetPerformance(string? value)
     {

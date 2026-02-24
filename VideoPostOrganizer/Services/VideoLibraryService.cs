@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Security.Cryptography;
 using VideoPostOrganizer.Models;
 
 namespace VideoPostOrganizer.Services;
@@ -44,7 +45,7 @@ public class VideoLibraryService
         return entries.OrderBy(x => x.VideoName).ToList();
     }
 
-    public List<VideoEntry> ImportVideos(string sourceFolder, string storageFolder)
+    public ImportResult ImportVideos(string sourceFolder, string storageFolder)
     {
         if (!Directory.Exists(sourceFolder))
         {
@@ -54,16 +55,26 @@ public class VideoLibraryService
         Directory.CreateDirectory(storageFolder);
 
         var imported = new List<VideoEntry>();
+        var duplicateCount = 0;
         var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v"
         };
+
+        var existingFingerprints = BuildFingerprintIndex(storageFolder, videoExtensions);
 
         foreach (var file in Directory.GetFiles(sourceFolder))
         {
             var extension = Path.GetExtension(file);
             if (!videoExtensions.Contains(extension))
             {
+                continue;
+            }
+
+            var sourceFingerprint = ComputeFileFingerprint(file);
+            if (existingFingerprints.Contains(sourceFingerprint))
+            {
+                duplicateCount++;
                 continue;
             }
 
@@ -98,9 +109,18 @@ public class VideoLibraryService
 
             SaveMetadata(entry);
             imported.Add(entry);
+            existingFingerprints.Add(sourceFingerprint);
         }
 
-        return imported.OrderBy(x => x.VideoName).ToList();
+        return new ImportResult(imported.OrderBy(x => x.VideoName).ToList(), duplicateCount);
+    }
+
+    public void DeleteVideo(VideoEntry entry)
+    {
+        if (Directory.Exists(entry.FolderPath))
+        {
+            Directory.Delete(entry.FolderPath, recursive: true);
+        }
     }
 
     public void DeleteVideo(VideoEntry entry)
@@ -258,3 +278,5 @@ public class VideoLibraryService
         };
     }
 }
+
+public sealed record ImportResult(List<VideoEntry> ImportedEntries, int DuplicateCount);
