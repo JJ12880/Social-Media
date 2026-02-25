@@ -36,6 +36,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly LibVLC _libVlc;
     private readonly MediaPlayer _mediaPlayer;
     private VideoView? _videoView;
+    private Media? _currentMedia;
 
     public ObservableCollection<VideoEntry> Entries { get; } = new();
     public ObservableCollection<string> DescriptionFiles { get; } = new();
@@ -271,6 +272,52 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         });
     }
 
+
+    private async void OnOpenInFolderClick(object? sender, RoutedEventArgs e)
+    {
+        if (SelectedEntry is null || !Directory.Exists(SelectedEntry.FolderPath))
+        {
+            await ShowMessageAsync("Video folder not found.");
+            return;
+        }
+
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{SelectedEntry.FolderPath}\"",
+                    UseShellExecute = true
+                });
+                return;
+            }
+
+            if (OperatingSystem.IsMacOS())
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "open",
+                    Arguments = $"\"{SelectedEntry.FolderPath}\"",
+                    UseShellExecute = false
+                });
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "xdg-open",
+                Arguments = $"\"{SelectedEntry.FolderPath}\"",
+                UseShellExecute = false
+            });
+        }
+        catch (Exception ex)
+        {
+            await ShowMessageAsync($"Unable to open folder: {ex.Message}");
+        }
+    }
+
     private void OnAddHashtagClick(object? sender, RoutedEventArgs e)
     {
         var storage = PrimaryStorageFolder;
@@ -357,14 +404,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        if (_mediaPlayer.Media == null)
+        if (_videoView != null && _videoView.MediaPlayer != _mediaPlayer)
         {
-            LoadVideoInPlayer(SelectedEntry.VideoPath, autoPlay: true);
+            _videoView.MediaPlayer = _mediaPlayer;
+        }
+
+        var selectedPath = SelectedEntry.VideoPath;
+        var loadedPath = _currentMedia?.Mrl;
+
+        if (string.IsNullOrWhiteSpace(loadedPath)
+            || !loadedPath.Equals(new Uri(selectedPath).AbsoluteUri, StringComparison.OrdinalIgnoreCase))
+        {
+            LoadVideoInPlayer(selectedPath, autoPlay: true);
             return;
         }
 
         _mediaPlayer.Play();
-        PreviewStatus = $"Playing: {Path.GetFileName(SelectedEntry.VideoPath)}";
+        PreviewStatus = $"Playing: {Path.GetFileName(selectedPath)}";
     }
 
     private void OnPauseClick(object? sender, RoutedEventArgs e)
@@ -384,8 +440,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void LoadVideoInPlayer(string videoPath, bool autoPlay)
     {
-        using var media = new Media(_libVlc, new Uri(videoPath));
-        _mediaPlayer.Media = media;
+        _currentMedia?.Dispose();
+        _currentMedia = new Media(_libVlc, new Uri(videoPath));
+        _mediaPlayer.Media = _currentMedia;
+
+        if (_videoView != null && _videoView.MediaPlayer != _mediaPlayer)
+        {
+            _videoView.MediaPlayer = _mediaPlayer;
+        }
 
         if (autoPlay)
         {
@@ -400,6 +462,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _mediaPlayer.Stop();
+        _currentMedia?.Dispose();
         _mediaPlayer.Dispose();
         _libVlc.Dispose();
     }

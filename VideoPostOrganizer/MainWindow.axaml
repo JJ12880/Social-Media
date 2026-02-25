@@ -3,8 +3,8 @@
         xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
         x:Class="VideoPostOrganizer.MainWindow"
         Title="Social Media Video Organizer"
-        Width="1200"
-        Height="820">
+        Width="1500"
+        Height="860">
   <Grid RowDefinitions="Auto,*" Margin="10" ColumnDefinitions="*">
     <Grid Row="0" ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
       <TextBlock Text="Storage folders:" VerticalAlignment="Center" />
@@ -18,15 +18,17 @@
       <Button Grid.Row="1" Grid.Column="3" Content="Import Videos" Click="OnImportClick" />
     </Grid>
 
-    <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="360,*">
+    <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="430,560,*">
+      <!-- Column 1: Videos -->
       <StackPanel Grid.Column="0" Spacing="8">
         <TextBlock Text="Videos" FontWeight="Bold" />
 
-        <Border BorderThickness="1" BorderBrush="Gray" Height="560">
+        <Border BorderThickness="1" BorderBrush="Gray" Height="700">
           <Grid RowDefinitions="Auto,*">
-            <Grid Grid.Row="0" ColumnDefinitions="*,110" Margin="8,6">
+            <Grid Grid.Row="0" ColumnDefinitions="2*,*,*" Margin="8,6">
               <TextBlock Text="Name" FontWeight="Bold" />
               <TextBlock Grid.Column="1" Text="Performance" FontWeight="Bold" />
+              <TextBlock Grid.Column="2" Text="Created" FontWeight="Bold" />
             </Grid>
 
             <ListBox Grid.Row="1"
@@ -34,9 +36,10 @@
                      SelectedItem="{Binding SelectedEntry}">
               <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnDefinitions="*,110" Margin="8,4">
+                  <Grid ColumnDefinitions="2*,*,*" Margin="8,4">
                     <TextBlock Text="{Binding VideoName}" />
                     <TextBlock Grid.Column="1" Text="{Binding PerformanceLevel}" />
+                    <TextBlock Grid.Column="2" Text="{Binding FileCreatedDisplay}" />
                   </Grid>
                 </DataTemplate>
               </ListBox.ItemTemplate>
@@ -45,6 +48,7 @@
                 <ContextMenu>
                   <MenuItem Header="Rename selected" Click="OnRenameClick" />
                   <MenuItem Header="Delete selected" Click="OnDeleteClick" />
+                  <MenuItem Header="Open in folder" Click="OnOpenInFolderClick" />
                 </ContextMenu>
               </ListBox.ContextMenu>
             </ListBox>
@@ -52,9 +56,10 @@
         </Border>
       </StackPanel>
 
+      <!-- Column 2: Preview + description -->
       <StackPanel Grid.Column="1" Spacing="8">
         <TextBlock Text="Video Preview" FontWeight="Bold" />
-        <Border Height="280" BorderThickness="1" BorderBrush="Gray" Padding="4">
+        <Border Height="320" BorderThickness="1" BorderBrush="Gray" Padding="4">
           <vlc:VideoView x:Name="VideoPreviewView" />
         </Border>
         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -73,7 +78,7 @@
           <Button Content="Add Description" Click="OnAddDescriptionClick" />
         </StackPanel>
 
-        <TextBox AcceptsReturn="True" Height="130" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
+        <TextBox AcceptsReturn="True" Height="210" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
 
         <StackPanel Orientation="Horizontal" Spacing="10">
           <TextBlock Text="Performance:" VerticalAlignment="Center" />
@@ -85,19 +90,24 @@
 
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="Tags:" VerticalAlignment="Center" />
-          <TextBox Width="450" Text="{Binding TagsText}" />
+          <TextBox Width="410" Text="{Binding TagsText}" />
         </StackPanel>
 
+        <Button Content="Save Selected Video" Width="160" Click="OnSaveClick" />
+      </StackPanel>
+
+      <!-- Column 3: Hashtags -->
+      <StackPanel Grid.Column="2" Spacing="8" Margin="12,0,0,0">
         <TextBlock Text="Common hashtags" FontWeight="Bold" />
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBox Width="180" Text="{Binding NewHashtag}" />
           <Button Content="Add Hashtag" Click="OnAddHashtagClick" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8">
           <Button Content="Remove Selected" Click="OnRemoveHashtagClick" />
           <Button Content="Append Selected To Description" Click="OnAppendHashtagClick" />
         </StackPanel>
-        <ListBox x:Name="CommonHashtagsList" Height="90" SelectionMode="Multiple" ItemsSource="{Binding CommonHashtags}" />
-
-        <Button Content="Save Selected Video" Width="160" Click="OnSaveClick" />
+        <ListBox x:Name="CommonHashtagsList" Height="620" SelectionMode="Multiple" ItemsSource="{Binding CommonHashtags}" />
       </StackPanel>
     </Grid>
   </Grid>
