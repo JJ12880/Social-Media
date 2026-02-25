@@ -37,6 +37,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly MediaPlayer _mediaPlayer;
     private VideoView? _videoView;
     private Media? _currentMedia;
+    private bool _isPreviewHostReady;
 
     public ObservableCollection<VideoEntry> Entries { get; } = new();
     public ObservableCollection<string> DescriptionFiles { get; } = new();
@@ -59,12 +60,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         InitializeComponent();
         _videoView = this.FindControl<VideoView>("VideoPreviewView");
-        if (_videoView != null)
-        {
-            _videoView.MediaPlayer = _mediaPlayer;
-        }
-
         DataContext = this;
+        Opened += (_, _) =>
+        {
+            _isPreviewHostReady = true;
+            if (_videoView != null && _videoView.MediaPlayer != _mediaPlayer)
+            {
+                _videoView.MediaPlayer = _mediaPlayer;
+            }
+        };
         Closed += OnWindowClosed;
     }
 
@@ -136,7 +140,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        LoadVideoInPlayer(entry.VideoPath, autoPlay: false);
+        StartEmbeddedPreview(entry.VideoPath);
     }
 
     private void LoadSelectedDescription()
@@ -404,23 +408,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        if (_videoView != null && _videoView.MediaPlayer != _mediaPlayer)
-        {
-            _videoView.MediaPlayer = _mediaPlayer;
-        }
-
-        var selectedPath = SelectedEntry.VideoPath;
-        var loadedPath = _currentMedia?.Mrl;
-
-        if (string.IsNullOrWhiteSpace(loadedPath)
-            || !loadedPath.Equals(new Uri(selectedPath).AbsoluteUri, StringComparison.OrdinalIgnoreCase))
-        {
-            LoadVideoInPlayer(selectedPath, autoPlay: true);
-            return;
-        }
-
-        _mediaPlayer.Play();
-        PreviewStatus = $"Playing: {Path.GetFileName(selectedPath)}";
+        StartEmbeddedPreview(SelectedEntry.VideoPath);
     }
 
     private void OnPauseClick(object? sender, RoutedEventArgs e)
@@ -438,31 +426,64 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PreviewStatus = "Stopped.";
     }
 
-    private void LoadVideoInPlayer(string videoPath, bool autoPlay)
+    private void StartEmbeddedPreview(string videoPath)
     {
-        _currentMedia?.Dispose();
-        _currentMedia = new Media(_libVlc, new Uri(videoPath));
-        _mediaPlayer.Media = _currentMedia;
+        if (!EnsurePreviewHost())
+        {
+            return;
+        }
 
-        if (_videoView != null && _videoView.MediaPlayer != _mediaPlayer)
+        var selectedUri = new Uri(videoPath).AbsoluteUri;
+        var loadedUri = _currentMedia?.Mrl;
+        if (!string.Equals(loadedUri, selectedUri, StringComparison.OrdinalIgnoreCase))
+        {
+            _currentMedia?.Dispose();
+            _currentMedia = new Media(_libVlc, new Uri(videoPath));
+        }
+
+        if (_currentMedia == null)
+        {
+            PreviewStatus = "Unable to load selected video.";
+            return;
+        }
+
+        _mediaPlayer.Play(_currentMedia);
+        PreviewStatus = $"Playing in preview: {Path.GetFileName(videoPath)}";
+    }
+
+    private bool EnsurePreviewHost()
+    {
+        if (_videoView == null)
+        {
+            PreviewStatus = "Video preview host is unavailable.";
+            return false;
+        }
+
+        if (_videoView.MediaPlayer != _mediaPlayer)
         {
             _videoView.MediaPlayer = _mediaPlayer;
         }
 
-        if (autoPlay)
+        if (!_isPreviewHostReady)
         {
-            _mediaPlayer.Play();
-            PreviewStatus = $"Playing: {Path.GetFileName(videoPath)}";
-            return;
+            PreviewStatus = "Preview host is not ready yet. Try again.";
+            return false;
         }
 
-        PreviewStatus = $"Loaded: {Path.GetFileName(videoPath)}";
+        return true;
     }
+
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _mediaPlayer.Stop();
         _currentMedia?.Dispose();
+
+        if (_videoView != null)
+        {
+            _videoView.MediaPlayer = null;
+        }
+
         _mediaPlayer.Dispose();
         _libVlc.Dispose();
     }
