@@ -13,6 +13,13 @@ public class VideoEntry
     public string PerformanceLevel { get; set; } = "Normal";
     public List<string> Tags { get; set; } = new();
     public DateTime? LastPostDate { get; set; }
+    public bool ReadyForUse { get; set; }
+
+    [JsonIgnore]
+    public DateTime? FileCreatedOn => File.Exists(VideoPath) ? File.GetCreationTime(VideoPath) : null;
+
+    [JsonIgnore]
+    public string FileCreatedDisplay => FileCreatedOn?.ToString("yyyy-MM-dd") ?? "-";
 
     [JsonIgnore]
     public DateTime? FileCreatedOn => File.Exists(VideoPath) ? File.GetCreationTime(VideoPath) : null;

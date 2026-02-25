@@ -33,6 +33,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _tagsText = string.Empty;
     private string _newHashtag = string.Empty;
     private string _searchQuery = string.Empty;
+    private bool _readyForUse;
+    private string _saveButtonText = "Save Selected Video";
 
     private List<VideoEntry> _allEntries = new();
 
@@ -116,6 +118,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public DateTimeOffset? LastPostDate { get => _lastPostDate; set => SetField(ref _lastPostDate, value); }
     public string TagsText { get => _tagsText; set => SetField(ref _tagsText, value); }
     public string NewHashtag { get => _newHashtag; set => SetField(ref _newHashtag, value); }
+    public bool ReadyForUse { get => _readyForUse; set => SetField(ref _readyForUse, value); }
+    public string SaveButtonText { get => _saveButtonText; set => SetField(ref _saveButtonText, value); }
     public string SearchQuery
     {
         get => _searchQuery;
@@ -149,6 +153,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PerformanceLevel = entry.PerformanceLevel;
         LastPostDate = entry.LastPostDate.HasValue ? new DateTimeOffset(entry.LastPostDate.Value) : null;
         TagsText = string.Join(", ", entry.Tags);
+        ReadyForUse = entry.ReadyForUse;
+        SaveButtonText = "Save Selected Video";
         if (!File.Exists(entry.VideoPath))
         {
             PreviewStatus = "Video file not found in storage.";
@@ -194,6 +200,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             SourceFolderText = folder;
         }
+    }
+
+    private void OnClearSearchClick(object? sender, RoutedEventArgs e)
+    {
+        SearchQuery = string.Empty;
     }
 
     private void OnLoadStorageClick(object? sender, RoutedEventArgs e)
@@ -243,6 +254,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(newName))
         {
             return;
+        }
+
+        if (IsVideoLoadedOrPlaying(SelectedEntry.VideoPath))
+        {
+            StopAndUnloadPreview();
         }
 
         _service.RenameVideo(SelectedEntry, newName);
@@ -471,6 +487,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         SelectedEntry.LastPostDate = LastPostDate?.Date;
+        SelectedEntry.ReadyForUse = ReadyForUse;
 
         _service.SaveMetadata(SelectedEntry);
         if (!string.IsNullOrWhiteSpace(SelectedDescriptionFile))
@@ -478,7 +495,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _service.SaveDescription(SelectedEntry, SelectedDescriptionFile, DescriptionText);
         }
 
-        await ShowMessageAsync("Saved.");
+        SaveButtonText = "Saved!";
+        await Task.Delay(2000);
+        SaveButtonText = "Save Selected Video";
     }
 
 

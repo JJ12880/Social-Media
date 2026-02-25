@@ -22,14 +22,18 @@
       <!-- Column 1: Videos -->
       <StackPanel Grid.Column="0" Spacing="8">
         <TextBlock Text="Videos" FontWeight="Bold" />
-        <TextBox Watermark="Search by video name" Text="{Binding SearchQuery}" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Grid.Column="0" Watermark="Search by video name" Text="{Binding SearchQuery}" />
+          <Button Grid.Column="1" Margin="6,0,0,0" Content="X" Width="28" Height="28" Click="OnClearSearchClick" />
+        </Grid>
 
         <Border BorderThickness="1" BorderBrush="Gray" Height="700">
           <Grid RowDefinitions="Auto,*">
-            <Grid Grid.Row="0" ColumnDefinitions="2*,*,*" Margin="8,6">
+            <Grid Grid.Row="0" ColumnDefinitions="2*,*,*,Auto" Margin="8,6">
               <TextBlock Text="Name" FontWeight="Bold" />
               <TextBlock Grid.Column="1" Text="Performance" FontWeight="Bold" />
               <TextBlock Grid.Column="2" Text="Created" FontWeight="Bold" />
+              <TextBlock Grid.Column="3" Text="Ready" FontWeight="Bold" />
             </Grid>
 
             <ListBox Grid.Row="1"
@@ -37,10 +41,11 @@
                      SelectedItem="{Binding SelectedEntry}">
               <ListBox.ItemTemplate>
                 <DataTemplate>
-                  <Grid ColumnDefinitions="2*,*,*" Margin="8,4">
+                  <Grid ColumnDefinitions="2*,*,*,Auto" Margin="8,4">
                     <TextBlock Text="{Binding VideoName}" />
                     <TextBlock Grid.Column="1" Text="{Binding PerformanceLevel}" />
                     <TextBlock Grid.Column="2" Text="{Binding FileCreatedDisplay}" />
+                    <TextBlock Grid.Column="3" Text="{Binding ReadyForUse}" />
                   </Grid>
                 </DataTemplate>
               </ListBox.ItemTemplate>
@@ -86,7 +91,10 @@
           <TextBox Width="410" Text="{Binding TagsText}" />
         </StackPanel>
 
-        <Button Content="Save Selected Video" Width="160" Click="OnSaveClick" />
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <CheckBox Content="ready for use" IsChecked="{Binding ReadyForUse}" VerticalAlignment="Center" />
+          <Button Content="{Binding SaveButtonText}" Width="160" Click="OnSaveClick" />
+        </StackPanel>
       </StackPanel>
 
       <!-- Column 3: Hashtags -->
