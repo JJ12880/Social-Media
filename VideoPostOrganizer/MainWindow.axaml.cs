@@ -11,6 +11,8 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using LibVLCSharp.Shared;
+using LibVLCSharp.Avalonia;
 using VideoPostOrganizer.Models;
 using VideoPostOrganizer.Services;
 
@@ -31,6 +33,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _tagsText = string.Empty;
     private string _newHashtag = string.Empty;
 
+    private readonly LibVLC _libVlc;
+    private readonly MediaPlayer _mediaPlayer;
+    private VideoView? _videoView;
+
     public ObservableCollection<VideoEntry> Entries { get; } = new();
     public ObservableCollection<string> DescriptionFiles { get; } = new();
     public ObservableCollection<string> CommonHashtags { get; } = new();
@@ -46,8 +52,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public MainWindow()
     {
+        Core.Initialize();
+        _libVlc = new LibVLC();
+        _mediaPlayer = new MediaPlayer(_libVlc);
+
         InitializeComponent();
+        _videoView = this.FindControl<VideoView>("VideoPreviewView");
+        if (_videoView != null)
+        {
+            _videoView.MediaPlayer = _mediaPlayer;
+        }
+
         DataContext = this;
+        Closed += OnWindowClosed;
     }
 
     private void InitializeComponent()
@@ -111,9 +128,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PerformanceLevel = entry.PerformanceLevel;
         LastPostDate = entry.LastPostDate.HasValue ? new DateTimeOffset(entry.LastPostDate.Value) : null;
         TagsText = string.Join(", ", entry.Tags);
-        PreviewStatus = File.Exists(entry.VideoPath)
-            ? $"Ready: {Path.GetFileName(entry.VideoPath)}"
-            : "Video file not found in storage.";
+        if (!File.Exists(entry.VideoPath))
+        {
+            PreviewStatus = "Video file not found in storage.";
+            _mediaPlayer.Stop();
+            return;
+        }
+
+        LoadVideoInPlayer(entry.VideoPath, autoPlay: false);
     }
 
     private void LoadSelectedDescription()
@@ -324,6 +346,62 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         await ShowMessageAsync("Saved.");
+    }
+
+
+    private void OnPlayClick(object? sender, RoutedEventArgs e)
+    {
+        if (SelectedEntry is null || !File.Exists(SelectedEntry.VideoPath))
+        {
+            PreviewStatus = "Video file not found in storage.";
+            return;
+        }
+
+        if (_mediaPlayer.Media == null)
+        {
+            LoadVideoInPlayer(SelectedEntry.VideoPath, autoPlay: true);
+            return;
+        }
+
+        _mediaPlayer.Play();
+        PreviewStatus = $"Playing: {Path.GetFileName(SelectedEntry.VideoPath)}";
+    }
+
+    private void OnPauseClick(object? sender, RoutedEventArgs e)
+    {
+        _mediaPlayer.Pause();
+        if (SelectedEntry is not null)
+        {
+            PreviewStatus = $"Paused: {Path.GetFileName(SelectedEntry.VideoPath)}";
+        }
+    }
+
+    private void OnStopClick(object? sender, RoutedEventArgs e)
+    {
+        _mediaPlayer.Stop();
+        PreviewStatus = "Stopped.";
+    }
+
+    private void LoadVideoInPlayer(string videoPath, bool autoPlay)
+    {
+        using var media = new Media(_libVlc, new Uri(videoPath));
+        _mediaPlayer.Media = media;
+
+        if (autoPlay)
+        {
+            _mediaPlayer.Play();
+            PreviewStatus = $"Playing: {Path.GetFileName(videoPath)}";
+            return;
+        }
+
+        PreviewStatus = $"Loaded: {Path.GetFileName(videoPath)}";
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        _mediaPlayer.Stop();
+        _mediaPlayer.Dispose();
+        _libVlc.Dispose();
     }
 
     private static string NormalizeHashtag(string? value)

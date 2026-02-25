@@ -1,9 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
         x:Class="VideoPostOrganizer.MainWindow"
         Title="Social Media Video Organizer"
         Width="1200"
-        Height="800">
+        Height="820">
   <Grid RowDefinitions="Auto,*" Margin="10" ColumnDefinitions="*">
     <Grid Row="0" ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
       <TextBlock Text="Storage folders:" VerticalAlignment="Center" />
@@ -17,35 +18,52 @@
       <Button Grid.Row="1" Grid.Column="3" Content="Import Videos" Click="OnImportClick" />
     </Grid>
 
-    <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="320,*">
+    <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="360,*">
       <StackPanel Grid.Column="0" Spacing="8">
         <TextBlock Text="Videos" FontWeight="Bold" />
-        <ListBox Height="560"
-                 ItemsSource="{Binding Entries}"
-                 SelectedItem="{Binding SelectedEntry}">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="{Binding VideoName}" />
-                <TextBlock Text="(" />
-                <TextBlock Text="{Binding PerformanceLevel}" />
-                <TextBlock Text=")" />
-              </StackPanel>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Content="Rename" Click="OnRenameClick" />
-          <Button Content="Delete" Click="OnDeleteClick" />
-        </StackPanel>
+
+        <Border BorderThickness="1" BorderBrush="Gray" Height="560">
+          <Grid RowDefinitions="Auto,*">
+            <Grid Grid.Row="0" ColumnDefinitions="*,110" Margin="8,6">
+              <TextBlock Text="Name" FontWeight="Bold" />
+              <TextBlock Grid.Column="1" Text="Performance" FontWeight="Bold" />
+            </Grid>
+
+            <ListBox Grid.Row="1"
+                     ItemsSource="{Binding Entries}"
+                     SelectedItem="{Binding SelectedEntry}">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnDefinitions="*,110" Margin="8,4">
+                    <TextBlock Text="{Binding VideoName}" />
+                    <TextBlock Grid.Column="1" Text="{Binding PerformanceLevel}" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+
+              <ListBox.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Rename selected" Click="OnRenameClick" />
+                  <MenuItem Header="Delete selected" Click="OnDeleteClick" />
+                </ContextMenu>
+              </ListBox.ContextMenu>
+            </ListBox>
+          </Grid>
+        </Border>
       </StackPanel>
 
       <StackPanel Grid.Column="1" Spacing="8">
         <TextBlock Text="Video Preview" FontWeight="Bold" />
-        <Border Height="180" BorderThickness="1" BorderBrush="Gray" Padding="8">
-          <TextBlock TextWrapping="Wrap" Text="{Binding PreviewStatus}" />
+        <Border Height="280" BorderThickness="1" BorderBrush="Gray" Padding="4">
+          <vlc:VideoView x:Name="VideoPreviewView" />
         </Border>
-        <Button Content="Open Video Externally" Width="170" Click="OnOpenExternallyClick" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Play" Width="90" Click="OnPlayClick" />
+          <Button Content="Pause" Width="90" Click="OnPauseClick" />
+          <Button Content="Stop" Width="90" Click="OnStopClick" />
+          <Button Content="Open Externally" Width="140" Click="OnOpenExternallyClick" />
+        </StackPanel>
+        <TextBlock TextWrapping="Wrap" Text="{Binding PreviewStatus}" />
 
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="Description file:" VerticalAlignment="Center" />
@@ -55,7 +73,7 @@
           <Button Content="Add Description" Click="OnAddDescriptionClick" />
         </StackPanel>
 
-        <TextBox AcceptsReturn="True" Height="150" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
+        <TextBox AcceptsReturn="True" Height="130" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
 
         <StackPanel Orientation="Horizontal" Spacing="10">
           <TextBlock Text="Performance:" VerticalAlignment="Center" />
