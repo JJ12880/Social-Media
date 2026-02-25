@@ -22,6 +22,12 @@ public class VideoEntry
     public string FileCreatedDisplay => FileCreatedOn?.ToString("yyyy-MM-dd") ?? "-";
 
     [JsonIgnore]
+    public DateTime? FileCreatedOn => File.Exists(VideoPath) ? File.GetCreationTime(VideoPath) : null;
+
+    [JsonIgnore]
+    public string FileCreatedDisplay => FileCreatedOn?.ToString("yyyy-MM-dd") ?? "-";
+
+    [JsonIgnore]
     public string DisplayName => LastPostDate is null
         ? VideoName
         : $"{VideoName} (last post: {LastPostDate:yyyy-MM-dd})";
