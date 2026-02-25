@@ -60,7 +60,7 @@
       <!-- Column 2: Preview + description -->
       <StackPanel Grid.Column="1" Spacing="8">
         <TextBlock Text="Video Preview" FontWeight="Bold" />
-        <Border Height="320" BorderThickness="1" BorderBrush="Gray" Padding="4">
+        <Border Height="240" BorderThickness="1" BorderBrush="Gray" Padding="4">
           <vlc:VideoView x:Name="VideoPreviewView" />
         </Border>
         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -79,15 +79,7 @@
           <Button Content="Add Description" Click="OnAddDescriptionClick" />
         </StackPanel>
 
-        <TextBox AcceptsReturn="True" Height="210" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
-
-        <StackPanel Orientation="Horizontal" Spacing="10">
-          <TextBlock Text="Performance:" VerticalAlignment="Center" />
-          <ComboBox Width="140" ItemsSource="{Binding PerformanceLevels}" SelectedItem="{Binding PerformanceLevel}" />
-
-          <TextBlock Text="Last post:" VerticalAlignment="Center" />
-          <DatePicker SelectedDate="{Binding LastPostDate}" Width="150" />
-        </StackPanel>
+        <TextBox AcceptsReturn="True" Height="147" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
 
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="Tags:" VerticalAlignment="Center" />
@@ -108,7 +100,16 @@
           <Button Content="Remove Selected" Click="OnRemoveHashtagClick" />
           <Button Content="Append Selected To Description" Click="OnAppendHashtagClick" />
         </StackPanel>
-        <ListBox x:Name="CommonHashtagsList" Height="620" SelectionMode="Multiple" ItemsSource="{Binding CommonHashtags}" />
+        <ListBox x:Name="CommonHashtagsList" Height="520" SelectionMode="Multiple" ItemsSource="{Binding CommonHashtags}" />
+
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="Performance:" VerticalAlignment="Center" />
+          <ComboBox Width="140" ItemsSource="{Binding PerformanceLevels}" SelectedItem="{Binding PerformanceLevel}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="Last post:" VerticalAlignment="Center" />
+          <DatePicker SelectedDate="{Binding LastPostDate}" Width="150" />
+        </StackPanel>
       </StackPanel>
     </Grid>
   </Grid>

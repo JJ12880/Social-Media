@@ -444,8 +444,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _currentMedia = new Media(_libVlc, new Uri(videoPath));
         }
 
+        if (_currentMedia == null)
+        {
+            PreviewStatus = "Unable to prepare preview.";
+            return;
+        }
+
         _mediaPlayer.Media = _currentMedia;
-        _mediaPlayer.Stop();
+
+        // Render first frame in preview without continuing playback.
+        _mediaPlayer.Play(_currentMedia);
+        _mediaPlayer.SetPause(true);
         PreviewStatus = $"Ready in preview: {Path.GetFileName(videoPath)}";
     }
 
