@@ -32,6 +32,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private DateTimeOffset? _lastPostDate;
     private string _tagsText = string.Empty;
     private string _newHashtag = string.Empty;
+    private string _searchQuery = string.Empty;
+
+    private List<VideoEntry> _allEntries = new();
 
     private readonly LibVLC _libVlc;
     private readonly MediaPlayer _mediaPlayer;
@@ -113,6 +116,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public DateTimeOffset? LastPostDate { get => _lastPostDate; set => SetField(ref _lastPostDate, value); }
     public string TagsText { get => _tagsText; set => SetField(ref _tagsText, value); }
     public string NewHashtag { get => _newHashtag; set => SetField(ref _newHashtag, value); }
+    public string SearchQuery
+    {
+        get => _searchQuery;
+        set
+        {
+            if (!SetField(ref _searchQuery, value))
+            {
+                return;
+            }
+
+            ApplyVideoFilter();
+        }
+    }
 
     private string? PrimaryStorageFolder => ParseStorageFolders().FirstOrDefault();
 
@@ -140,7 +156,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        StartEmbeddedPreview(entry.VideoPath);
+        PrepareEmbeddedPreview(entry.VideoPath);
     }
 
     private void LoadSelectedDescription()
@@ -182,11 +198,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnLoadStorageClick(object? sender, RoutedEventArgs e)
     {
-        Entries.Clear();
-        foreach (var entry in ParseStorageFolders().SelectMany(_service.LoadFromStorage).OrderBy(x => x.VideoName))
-        {
-            Entries.Add(entry);
-        }
+        _allEntries = ParseStorageFolders()
+            .SelectMany(_service.LoadFromStorage)
+            .OrderBy(x => x.VideoName)
+            .ToList();
+        ApplyVideoFilter();
 
         CommonHashtags.Clear();
         if (!string.IsNullOrWhiteSpace(PrimaryStorageFolder))
@@ -207,10 +223,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         var result = _service.ImportVideos(SourceFolderText, PrimaryStorageFolder);
-        foreach (var entry in result.ImportedEntries)
-        {
-            Entries.Add(entry);
-        }
+        _allEntries = _allEntries
+            .Concat(result.ImportedEntries)
+            .OrderBy(x => x.VideoName)
+            .ToList();
+        ApplyVideoFilter();
 
         await ShowMessageAsync($"Imported {result.ImportedEntries.Count} videos. Skipped duplicates: {result.DuplicateCount}.");
     }
@@ -242,6 +259,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!await ConfirmAsync($"Delete '{SelectedEntry.VideoName}' from storage?"))
         {
             return;
+        }
+
+        if (IsVideoLoadedOrPlaying(SelectedEntry.VideoPath))
+        {
+            StopAndUnloadPreview();
         }
 
         _service.DeleteVideo(SelectedEntry);
@@ -376,6 +398,57 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DescriptionText += string.Join(" ", selected);
     }
 
+
+    private void ApplyVideoFilter()
+    {
+        var query = SearchQuery?.Trim() ?? string.Empty;
+        var filtered = string.IsNullOrWhiteSpace(query)
+            ? _allEntries
+            : _allEntries.Where(x => x.VideoName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        Entries.Clear();
+        foreach (var entry in filtered.OrderBy(x => x.VideoName))
+        {
+            Entries.Add(entry);
+        }
+    }
+
+    private bool IsVideoLoadedOrPlaying(string videoPath)
+    {
+        var selectedUri = new Uri(videoPath).AbsoluteUri;
+        var loadedUri = _currentMedia?.Mrl;
+        return string.Equals(loadedUri, selectedUri, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void StopAndUnloadPreview()
+    {
+        _mediaPlayer.Stop();
+        _mediaPlayer.Media = null;
+        _currentMedia?.Dispose();
+        _currentMedia = null;
+        PreviewStatus = "Preview unloaded.";
+    }
+
+    private void PrepareEmbeddedPreview(string videoPath)
+    {
+        if (!EnsurePreviewHost())
+        {
+            return;
+        }
+
+        var selectedUri = new Uri(videoPath).AbsoluteUri;
+        var loadedUri = _currentMedia?.Mrl;
+        if (!string.Equals(loadedUri, selectedUri, StringComparison.OrdinalIgnoreCase))
+        {
+            _currentMedia?.Dispose();
+            _currentMedia = new Media(_libVlc, new Uri(videoPath));
+        }
+
+        _mediaPlayer.Media = _currentMedia;
+        _mediaPlayer.Stop();
+        PreviewStatus = $"Ready in preview: {Path.GetFileName(videoPath)}";
+    }
+
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
     {
         if (SelectedEntry is null)
@@ -428,18 +501,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void StartEmbeddedPreview(string videoPath)
     {
-        if (!EnsurePreviewHost())
-        {
-            return;
-        }
-
-        var selectedUri = new Uri(videoPath).AbsoluteUri;
-        var loadedUri = _currentMedia?.Mrl;
-        if (!string.Equals(loadedUri, selectedUri, StringComparison.OrdinalIgnoreCase))
-        {
-            _currentMedia?.Dispose();
-            _currentMedia = new Media(_libVlc, new Uri(videoPath));
-        }
+        PrepareEmbeddedPreview(videoPath);
 
         if (_currentMedia == null)
         {

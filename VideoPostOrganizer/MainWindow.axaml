@@ -22,6 +22,7 @@
       <!-- Column 1: Videos -->
       <StackPanel Grid.Column="0" Spacing="8">
         <TextBlock Text="Videos" FontWeight="Bold" />
+        <TextBox Watermark="Search by video name" Text="{Binding SearchQuery}" />
 
         <Border BorderThickness="1" BorderBrush="Gray" Height="700">
           <Grid RowDefinitions="Auto,*">
