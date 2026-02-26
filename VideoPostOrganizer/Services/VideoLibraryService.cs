@@ -9,6 +9,8 @@ public class VideoLibraryService
 {
     private const string MetadataFileName = "metadata.json";
     private const string CommonHashtagsFileName = "common-hashtags.json";
+    private const string ScheduleFileName = "schedule.json";
+    private const string ScheduleSettingsFileName = "schedule-settings.json";
     private static readonly HashSet<string> SupportedVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v"
@@ -205,6 +207,60 @@ public class VideoLibraryService
 
         var json = JsonSerializer.Serialize(normalized, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(hashtagsPath, json);
+    }
+
+    public List<ScheduledPost> LoadSchedule(string storageFolder)
+    {
+        var schedulePath = Path.Combine(storageFolder, ScheduleFileName);
+        if (!File.Exists(schedulePath))
+        {
+            return new List<ScheduledPost>();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(schedulePath);
+            return JsonSerializer.Deserialize<List<ScheduledPost>>(json) ?? new List<ScheduledPost>();
+        }
+        catch
+        {
+            return new List<ScheduledPost>();
+        }
+    }
+
+    public void SaveSchedule(string storageFolder, List<ScheduledPost> schedule)
+    {
+        Directory.CreateDirectory(storageFolder);
+        var schedulePath = Path.Combine(storageFolder, ScheduleFileName);
+        var json = JsonSerializer.Serialize(schedule.OrderBy(x => x.ScheduledAt).ToList(), new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(schedulePath, json);
+    }
+
+    public ScheduleSettings LoadScheduleSettings(string storageFolder)
+    {
+        var settingsPath = Path.Combine(storageFolder, ScheduleSettingsFileName);
+        if (!File.Exists(settingsPath))
+        {
+            return new ScheduleSettings();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(settingsPath);
+            return JsonSerializer.Deserialize<ScheduleSettings>(json) ?? new ScheduleSettings();
+        }
+        catch
+        {
+            return new ScheduleSettings();
+        }
+    }
+
+    public void SaveScheduleSettings(string storageFolder, ScheduleSettings settings)
+    {
+        Directory.CreateDirectory(storageFolder);
+        var settingsPath = Path.Combine(storageFolder, ScheduleSettingsFileName);
+        var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(settingsPath, json);
     }
 
     public string AddDescription(VideoEntry entry)

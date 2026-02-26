@@ -51,11 +51,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private double _performanceColumnWidth = 120;
     private double _createdColumnWidth = 110;
     private double _readyColumnWidth = 80;
+    private DateTimeOffset? _selectedScheduleDate = DateTimeOffset.Now.Date;
+    private string _scheduleDefaultTime = "09:00";
+    private string _firstPostSubtype = "post";
+    private string _repeatPostSubtype = "reel";
+    private int _repeatEveryDays = 7;
+    private int _repeatCount;
+    private string _scheduleStatus = "Load storage to start scheduling.";
 
     public ObservableCollection<VideoEntry> Entries { get; } = new();
     public ObservableCollection<string> DescriptionFiles { get; } = new();
     public ObservableCollection<string> CommonHashtags { get; } = new();
     public List<string> PerformanceLevels { get; } = new() { "Low", "Normal", "High" };
+    public List<string> PostSubtypes { get; } = new() { "post", "reel" };
+    public ObservableCollection<ScheduledPost> ScheduledPosts { get; } = new();
 
     private event PropertyChangedEventHandler? ViewModelPropertyChanged;
 
@@ -148,6 +157,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public double PerformanceColumnWidth { get => _performanceColumnWidth; set => SetField(ref _performanceColumnWidth, value); }
     public double CreatedColumnWidth { get => _createdColumnWidth; set => SetField(ref _createdColumnWidth, value); }
     public double ReadyColumnWidth { get => _readyColumnWidth; set => SetField(ref _readyColumnWidth, value); }
+    public DateTimeOffset? SelectedScheduleDate { get => _selectedScheduleDate; set => SetField(ref _selectedScheduleDate, value); }
+    public string ScheduleDefaultTime { get => _scheduleDefaultTime; set => SetField(ref _scheduleDefaultTime, value); }
+    public string FirstPostSubtype { get => _firstPostSubtype; set => SetField(ref _firstPostSubtype, value); }
+    public string RepeatPostSubtype { get => _repeatPostSubtype; set => SetField(ref _repeatPostSubtype, value); }
+    public int RepeatEveryDays { get => _repeatEveryDays; set => SetField(ref _repeatEveryDays, Math.Max(1, value)); }
+    public int RepeatCount { get => _repeatCount; set => SetField(ref _repeatCount, Math.Max(0, value)); }
+    public string ScheduleStatus { get => _scheduleStatus; set => SetField(ref _scheduleStatus, value); }
 
     private string? PrimaryStorageFolder => ParseStorageFolders().FirstOrDefault();
 
@@ -232,12 +248,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ApplyVideoFilter();
 
         CommonHashtags.Clear();
+        ScheduledPosts.Clear();
         if (!string.IsNullOrWhiteSpace(PrimaryStorageFolder))
         {
             foreach (var tag in _service.LoadCommonHashtags(PrimaryStorageFolder))
             {
                 CommonHashtags.Add(tag);
             }
+
+            foreach (var post in _service.LoadSchedule(PrimaryStorageFolder))
+            {
+                ScheduledPosts.Add(post);
+            }
+
+            var settings = _service.LoadScheduleSettings(PrimaryStorageFolder);
+            ScheduleDefaultTime = settings.DefaultPostTime;
+            FirstPostSubtype = settings.FirstPostSubtype;
+            RepeatPostSubtype = settings.RepeatPostSubtype;
+            RepeatEveryDays = settings.RepeatEveryDays;
+            RepeatCount = settings.RepeatCount;
+            ScheduleStatus = "Schedule loaded.";
         }
     }
 
@@ -692,6 +722,138 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
 
+    private void OnSaveScheduleSettingsClick(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        {
+            ScheduleStatus = "Load storage first.";
+            return;
+        }
+
+        var settings = new ScheduleSettings
+        {
+            DefaultPostTime = ScheduleDefaultTime,
+            FirstPostSubtype = FirstPostSubtype,
+            RepeatPostSubtype = RepeatPostSubtype,
+            RepeatEveryDays = RepeatEveryDays,
+            RepeatCount = RepeatCount
+        };
+
+        _service.SaveScheduleSettings(PrimaryStorageFolder, settings);
+        ScheduleStatus = "Schedule settings saved.";
+    }
+
+    private void OnScheduleSelectedVideosClick(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        {
+            ScheduleStatus = "Load storage first.";
+            return;
+        }
+
+        var selected = this.FindControl<ListBox>("ScheduleVideoList")?.SelectedItems?.OfType<VideoEntry>().ToList() ?? new List<VideoEntry>();
+        if (selected.Count == 0)
+        {
+            ScheduleStatus = "Select one or more videos to schedule.";
+            return;
+        }
+
+        if (SelectedScheduleDate is null)
+        {
+            ScheduleStatus = "Choose a target day.";
+            return;
+        }
+
+        if (!TimeSpan.TryParse(ScheduleDefaultTime, out var postTime))
+        {
+            ScheduleStatus = "Time must be HH:mm.";
+            return;
+        }
+
+        var baseDate = SelectedScheduleDate.Value.Date + postTime;
+
+        foreach (var entry in selected)
+        {
+            ScheduledPosts.Add(new ScheduledPost
+            {
+                VideoName = entry.VideoName,
+                VideoFileName = entry.VideoFileName,
+                FolderPath = entry.FolderPath,
+                ScheduledAt = baseDate,
+                PostSubtype = FirstPostSubtype,
+                RepeatEveryDays = RepeatEveryDays
+            });
+
+            for (var i = 1; i <= RepeatCount; i++)
+            {
+                ScheduledPosts.Add(new ScheduledPost
+                {
+                    VideoName = entry.VideoName,
+                    VideoFileName = entry.VideoFileName,
+                    FolderPath = entry.FolderPath,
+                    ScheduledAt = baseDate.AddDays(RepeatEveryDays * i),
+                    PostSubtype = RepeatPostSubtype,
+                    RepeatEveryDays = RepeatEveryDays
+                });
+            }
+        }
+
+        PersistSchedule();
+        ScheduleStatus = $"Scheduled {selected.Count} video(s) with repeats.";
+    }
+
+    private async void OnExportPublerCsvClick(object? sender, RoutedEventArgs e)
+    {
+        if (ScheduledPosts.Count == 0)
+        {
+            ScheduleStatus = "No scheduled posts to export.";
+            return;
+        }
+
+        var filePath = await PickSaveFileAsync();
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            ScheduleStatus = "Export canceled.";
+            return;
+        }
+
+        var csv = PublerCsvExporter.BuildCsv(
+            ScheduledPosts,
+            ResolveScheduledDescription,
+            ResolveScheduledMediaPath);
+
+        File.WriteAllText(filePath, csv);
+        ScheduleStatus = $"Exported CSV: {filePath}";
+    }
+
+    private string ResolveScheduledDescription(ScheduledPost post)
+    {
+        var entry = _allEntries.FirstOrDefault(x => string.Equals(x.FolderPath, post.FolderPath, StringComparison.OrdinalIgnoreCase));
+        if (entry is null)
+        {
+            return string.Empty;
+        }
+
+        var descriptionFile = entry.DescriptionFiles.OrderBy(x => x).FirstOrDefault();
+        return string.IsNullOrWhiteSpace(descriptionFile) ? string.Empty : _service.LoadDescription(entry, descriptionFile);
+    }
+
+    private string ResolveScheduledMediaPath(ScheduledPost post)
+    {
+        var preferredPath = Path.Combine(post.FolderPath, post.VideoFileName);
+        return File.Exists(preferredPath) ? preferredPath : string.Empty;
+    }
+
+    private void PersistSchedule()
+    {
+        if (string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        {
+            return;
+        }
+
+        _service.SaveSchedule(PrimaryStorageFolder, ScheduledPosts.OrderBy(x => x.ScheduledAt).ToList());
+    }
+
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _mediaPlayer.Stop();
@@ -726,6 +888,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         });
 
         return folders.FirstOrDefault()?.Path.LocalPath;
+    }
+
+    private async Task<string?> PickSaveFileAsync()
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export Publer CSV",
+            SuggestedFileName = "publer-schedule.csv",
+            FileTypeChoices = new List<FilePickerFileType>
+            {
+                new("CSV") { Patterns = new[] { "*.csv" } }
+            }
+        });
+
+        return file?.Path.LocalPath;
     }
 
     private async Task ShowMessageAsync(string message)
