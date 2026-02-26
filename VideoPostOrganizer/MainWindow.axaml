@@ -1,0 +1,196 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
+        x:Class="VideoPostOrganizer.MainWindow"
+        x:Name="Root"
+        Title="Social Media Video Organizer"
+        Width="1500"
+        Height="860">
+  <TabControl Margin="10">
+    <TabItem Header="Library">
+      <Grid RowDefinitions="Auto,*" ColumnDefinitions="*">
+        <Grid Row="0" ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
+          <TextBlock Text="Storage folders:" VerticalAlignment="Center" />
+          <TextBox Grid.Column="1" Text="{Binding StorageFoldersText}" />
+          <Button Grid.Column="2" Content="Add Storage" Click="OnAddStorageClick" />
+          <Button Grid.Column="3" Content="Load Storage" Click="OnLoadStorageClick" />
+
+          <TextBlock Grid.Row="1" Text="Source videos:" VerticalAlignment="Center" />
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SourceFolderText}" />
+          <Button Grid.Row="1" Grid.Column="2" Content="Browse" Click="OnBrowseSourceClick" />
+          <Button Grid.Row="1" Grid.Column="3" Content="Import Videos" Click="OnImportClick" />
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="430,560,*">
+          <StackPanel Grid.Column="0" Spacing="8">
+            <TextBlock Text="Videos" FontWeight="Bold" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Grid.Column="0" Watermark="Search by video name" Text="{Binding SearchQuery}" />
+              <Button Grid.Column="1" Margin="6,0,0,0" Content="X" Width="28" Height="28" Click="OnClearSearchClick" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Col widths:" VerticalAlignment="Center" />
+              <NumericUpDown Width="70" Minimum="80" Maximum="500" Increment="10" Value="{Binding NameColumnWidth}" />
+              <NumericUpDown Width="70" Minimum="60" Maximum="220" Increment="10" Value="{Binding PerformanceColumnWidth}" />
+              <NumericUpDown Width="70" Minimum="60" Maximum="220" Increment="10" Value="{Binding CreatedColumnWidth}" />
+              <NumericUpDown Width="70" Minimum="50" Maximum="160" Increment="10" Value="{Binding ReadyColumnWidth}" />
+            </StackPanel>
+
+            <Border BorderThickness="1" BorderBrush="Gray" Height="700">
+              <Grid RowDefinitions="Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto" Margin="8,6">
+                  <Button Content="Name" Width="{Binding NameColumnWidth}" HorizontalAlignment="Left" Click="OnSortByNameClick" />
+                  <Button Grid.Column="1" Content="Performance" Width="{Binding PerformanceColumnWidth}" HorizontalAlignment="Left" Click="OnSortByPerformanceClick" />
+                  <Button Grid.Column="2" Content="Created" Width="{Binding CreatedColumnWidth}" HorizontalAlignment="Left" Click="OnSortByCreatedClick" />
+                  <Button Grid.Column="3" Content="Ready" Width="{Binding ReadyColumnWidth}" HorizontalAlignment="Left" Click="OnSortByReadyClick" />
+                </Grid>
+
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding Entries}"
+                         SelectedItem="{Binding SelectedEntry}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" Margin="8,4">
+                        <TextBlock Text="{Binding VideoName}" Width="{Binding #Root.NameColumnWidth}" />
+                        <TextBlock Grid.Column="1" Text="{Binding PerformanceLevel}" Width="{Binding #Root.PerformanceColumnWidth}" />
+                        <TextBlock Grid.Column="2" Text="{Binding FileCreatedDisplay}" Width="{Binding #Root.CreatedColumnWidth}" />
+                        <TextBlock Grid.Column="3" Text="{Binding ReadyForUse}" Width="{Binding #Root.ReadyColumnWidth}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+
+                  <ListBox.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Rename selected" Click="OnRenameClick" />
+                      <MenuItem Header="Delete selected" Click="OnDeleteClick" />
+                      <MenuItem Header="Open in folder" Click="OnOpenInFolderClick" />
+                    </ContextMenu>
+                  </ListBox.ContextMenu>
+                </ListBox>
+              </Grid>
+            </Border>
+          </StackPanel>
+
+          <StackPanel Grid.Column="1" Spacing="8">
+            <TextBlock Text="Video Preview" FontWeight="Bold" />
+            <Border Height="240" BorderThickness="1" BorderBrush="Gray" Padding="4">
+              <vlc:VideoView x:Name="VideoPreviewView" />
+            </Border>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="{Binding PlayPauseButtonText}" Width="90" Click="OnPlayPauseClick" />
+              <Button Content="Stop" Width="90" Click="OnStopClick" />
+              <Button Content="Open Externally" Width="140" Click="OnOpenExternallyClick" />
+            </StackPanel>
+            <TextBlock TextWrapping="Wrap" Text="{Binding PreviewStatus}" />
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Description file:" VerticalAlignment="Center" />
+              <ComboBox Width="250"
+                        ItemsSource="{Binding DescriptionFiles}"
+                        SelectedItem="{Binding SelectedDescriptionFile}" />
+              <Button Content="Add Description" Click="OnAddDescriptionClick" />
+            </StackPanel>
+
+            <TextBox AcceptsReturn="True" Height="147" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Tags:" VerticalAlignment="Center" />
+              <TextBox Width="410" Text="{Binding TagsText}" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <CheckBox Content="ready for use" IsChecked="{Binding ReadyForUse}" VerticalAlignment="Center" />
+              <Button Content="{Binding SaveButtonText}" Width="160" Click="OnSaveClick" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Grid.Column="2" Spacing="8" Margin="12,0,0,0">
+            <TextBlock Text="Common hashtags" FontWeight="Bold" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox Width="180" Text="{Binding NewHashtag}" />
+              <Button Content="Add Hashtag" Click="OnAddHashtagClick" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Remove Selected" Click="OnRemoveHashtagClick" />
+              <Button Content="Append Selected To Description" Click="OnAppendHashtagClick" />
+            </StackPanel>
+            <ListBox x:Name="CommonHashtagsList" Height="520" SelectionMode="Multiple" ItemsSource="{Binding CommonHashtags}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Move Up" Click="OnMoveHashtagUpClick" />
+              <Button Content="Move Down" Click="OnMoveHashtagDownClick" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="Performance:" VerticalAlignment="Center" />
+              <ComboBox Width="140" ItemsSource="{Binding PerformanceLevels}" SelectedItem="{Binding PerformanceLevel}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="Last post:" VerticalAlignment="Center" />
+              <DatePicker SelectedDate="{Binding LastPostDate}" Width="150" />
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </TabItem>
+
+    <TabItem Header="Schedule">
+      <Grid ColumnDefinitions="350,*,340" RowDefinitions="Auto,*" Margin="0,6,0,0">
+        <Border Grid.ColumnSpan="3" BorderThickness="1" BorderBrush="Gray" Padding="8" Margin="0,0,0,8">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Default Post Time (HH:mm):" VerticalAlignment="Center" />
+            <TextBox Width="80" Text="{Binding ScheduleDefaultTime}" />
+            <TextBlock Text="First subtype:" VerticalAlignment="Center" />
+            <ComboBox Width="100" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding FirstPostSubtype}" />
+            <TextBlock Text="Repeat subtype:" VerticalAlignment="Center" />
+            <ComboBox Width="100" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding RepeatPostSubtype}" />
+            <TextBlock Text="Repeat every (days):" VerticalAlignment="Center" />
+            <NumericUpDown Width="80" Minimum="1" Maximum="365" Value="{Binding RepeatEveryDays}" />
+            <TextBlock Text="Repeat count:" VerticalAlignment="Center" />
+            <NumericUpDown Width="80" Minimum="0" Maximum="30" Value="{Binding RepeatCount}" />
+            <Button Content="Save settings" Click="OnSaveScheduleSettingsClick" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
+          <TextBlock Text="Videos to schedule" FontWeight="Bold" />
+          <ListBox x:Name="ScheduleVideoList" Height="650" SelectionMode="Multiple" ItemsSource="{Binding Entries}">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding VideoName}" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8" Margin="10,0,10,0">
+          <TextBlock Text="Calendar day planning" FontWeight="Bold" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Target day:" VerticalAlignment="Center" />
+            <DatePicker SelectedDate="{Binding SelectedScheduleDate}" Width="180" />
+            <Button Content="Schedule selected videos" Click="OnScheduleSelectedVideosClick" />
+          </StackPanel>
+          <TextBlock Text="Tip: select multiple videos on the left, set repeat settings, then schedule them for the chosen day." TextWrapping="Wrap" />
+          <ListBox ItemsSource="{Binding ScheduledPosts}" Height="590">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="170,100,100,*" Margin="4,2">
+                  <TextBlock Text="{Binding ScheduledAtDisplay}" />
+                  <TextBlock Grid.Column="1" Text="{Binding PostSubtype}" />
+                  <TextBlock Grid.Column="2" Text="{Binding RepeatEveryDaysDisplay}" />
+                  <TextBlock Grid.Column="3" Text="{Binding VideoName}" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Grid.Column="2" Spacing="8">
+          <TextBlock Text="Export" FontWeight="Bold" />
+          <Button Content="Export Publer CSV" Click="OnExportPublerCsvClick" />
+          <TextBlock TextWrapping="Wrap" Text="{Binding ScheduleStatus}" />
+          <TextBlock Text="CSV columns: Date, Text, Link(s), Media URL(s), Title, Label(s), Alt text(s), Comment(s), Pin board/album/category, Post subtype, CTA, Reminder" TextWrapping="Wrap" FontSize="11" />
+        </StackPanel>
+      </Grid>
+    </TabItem>
+  </TabControl>
+</Window>
