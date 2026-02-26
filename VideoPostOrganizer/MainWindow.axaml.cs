@@ -47,6 +47,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private VideoView? _videoView;
     private Media? _currentMedia;
     private bool _isPreviewHostReady;
+    private double _nameColumnWidth = 220;
+    private double _performanceColumnWidth = 120;
+    private double _createdColumnWidth = 110;
+    private double _readyColumnWidth = 80;
 
     public ObservableCollection<VideoEntry> Entries { get; } = new();
     public ObservableCollection<string> DescriptionFiles { get; } = new();
@@ -138,6 +142,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ApplyVideoFilter();
         }
     }
+
+
+    public double NameColumnWidth { get => _nameColumnWidth; set => SetField(ref _nameColumnWidth, value); }
+    public double PerformanceColumnWidth { get => _performanceColumnWidth; set => SetField(ref _performanceColumnWidth, value); }
+    public double CreatedColumnWidth { get => _createdColumnWidth; set => SetField(ref _createdColumnWidth, value); }
+    public double ReadyColumnWidth { get => _readyColumnWidth; set => SetField(ref _readyColumnWidth, value); }
 
     private string? PrimaryStorageFolder => ParseStorageFolders().FirstOrDefault();
 
@@ -412,12 +422,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(DescriptionText) && !DescriptionText.EndsWith(' '))
+        if (!string.IsNullOrWhiteSpace(DescriptionText) && !DescriptionText.EndsWith(Environment.NewLine))
         {
-            DescriptionText += " ";
+            DescriptionText += Environment.NewLine;
         }
 
-        DescriptionText += string.Join(" ", selected);
+        DescriptionText += string.Join(Environment.NewLine, selected);
     }
 
 
@@ -486,10 +496,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void StopAndUnloadPreview()
     {
-        _mediaPlayer.Stop();
+        // Avoid UI hangs seen with _mediaPlayer.Stop() after pause on some platforms.
+        if (_videoView != null)
+        {
+            _videoView.MediaPlayer = null;
+        }
+
         _mediaPlayer.Media = null;
         _currentMedia?.Dispose();
         _currentMedia = null;
+
+        if (_videoView != null)
+        {
+            _videoView.MediaPlayer = _mediaPlayer;
+        }
+
         PlayPauseButtonText = "Play";
         PreviewStatus = "Preview unloaded.";
     }
@@ -522,6 +543,53 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _mediaPlayer.SetPause(true);
         PlayPauseButtonText = "Play";
         PreviewStatus = $"Ready in preview: {Path.GetFileName(videoPath)}";
+    }
+
+
+    private void OnMoveHashtagUpClick(object? sender, RoutedEventArgs e)
+    {
+        if (this.FindControl<ListBox>("CommonHashtagsList")?.SelectedItem is not string selectedTag)
+        {
+            return;
+        }
+
+        var currentIndex = CommonHashtags.IndexOf(selectedTag);
+        if (currentIndex <= 0)
+        {
+            return;
+        }
+
+        CommonHashtags.Move(currentIndex, currentIndex - 1);
+        PersistCommonHashtagsOrder();
+        this.FindControl<ListBox>("CommonHashtagsList")!.SelectedItem = selectedTag;
+    }
+
+    private void OnMoveHashtagDownClick(object? sender, RoutedEventArgs e)
+    {
+        if (this.FindControl<ListBox>("CommonHashtagsList")?.SelectedItem is not string selectedTag)
+        {
+            return;
+        }
+
+        var currentIndex = CommonHashtags.IndexOf(selectedTag);
+        if (currentIndex < 0 || currentIndex >= CommonHashtags.Count - 1)
+        {
+            return;
+        }
+
+        CommonHashtags.Move(currentIndex, currentIndex + 1);
+        PersistCommonHashtagsOrder();
+        this.FindControl<ListBox>("CommonHashtagsList")!.SelectedItem = selectedTag;
+    }
+
+    private void PersistCommonHashtagsOrder()
+    {
+        if (string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        {
+            return;
+        }
+
+        _service.SaveCommonHashtags(PrimaryStorageFolder, CommonHashtags.ToList());
     }
 
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
