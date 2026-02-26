@@ -35,6 +35,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _searchQuery = string.Empty;
     private bool _readyForUse;
     private string _saveButtonText = "Save Selected Video";
+    private string _playPauseButtonText = "Play";
+
+    private string _sortColumn = "name";
+    private bool _sortAscending = true;
 
     private List<VideoEntry> _allEntries = new();
 
@@ -120,6 +124,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string NewHashtag { get => _newHashtag; set => SetField(ref _newHashtag, value); }
     public bool ReadyForUse { get => _readyForUse; set => SetField(ref _readyForUse, value); }
     public string SaveButtonText { get => _saveButtonText; set => SetField(ref _saveButtonText, value); }
+    public string PlayPauseButtonText { get => _playPauseButtonText; set => SetField(ref _playPauseButtonText, value); }
     public string SearchQuery
     {
         get => _searchQuery;
@@ -155,6 +160,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         TagsText = string.Join(", ", entry.Tags);
         ReadyForUse = entry.ReadyForUse;
         SaveButtonText = "Save Selected Video";
+        PlayPauseButtonText = "Play";
         if (!File.Exists(entry.VideoPath))
         {
             PreviewStatus = "Video file not found in storage.";
@@ -422,12 +428,54 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ? _allEntries
             : _allEntries.Where(x => x.VideoName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
 
+        var sorted = SortEntries(filtered);
+
         Entries.Clear();
-        foreach (var entry in filtered.OrderBy(x => x.VideoName))
+        foreach (var entry in sorted)
         {
             Entries.Add(entry);
         }
     }
+
+
+    private IEnumerable<VideoEntry> SortEntries(IEnumerable<VideoEntry> source)
+    {
+        return (_sortColumn, _sortAscending) switch
+        {
+            ("name", true) => source.OrderBy(x => x.VideoName),
+            ("name", false) => source.OrderByDescending(x => x.VideoName),
+            ("performance", true) => source.OrderBy(x => x.PerformanceLevel).ThenBy(x => x.VideoName),
+            ("performance", false) => source.OrderByDescending(x => x.PerformanceLevel).ThenBy(x => x.VideoName),
+            ("created", true) => source.OrderBy(x => x.FileCreatedOn ?? DateTime.MinValue).ThenBy(x => x.VideoName),
+            ("created", false) => source.OrderByDescending(x => x.FileCreatedOn ?? DateTime.MinValue).ThenBy(x => x.VideoName),
+            ("ready", true) => source.OrderBy(x => x.ReadyForUse).ThenBy(x => x.VideoName),
+            ("ready", false) => source.OrderByDescending(x => x.ReadyForUse).ThenBy(x => x.VideoName),
+            _ => source.OrderBy(x => x.VideoName)
+        };
+    }
+
+    private void ToggleSort(string column)
+    {
+        if (_sortColumn.Equals(column, StringComparison.OrdinalIgnoreCase))
+        {
+            _sortAscending = !_sortAscending;
+        }
+        else
+        {
+            _sortColumn = column;
+            _sortAscending = true;
+        }
+
+        ApplyVideoFilter();
+    }
+
+    private void OnSortByNameClick(object? sender, RoutedEventArgs e) => ToggleSort("name");
+
+    private void OnSortByPerformanceClick(object? sender, RoutedEventArgs e) => ToggleSort("performance");
+
+    private void OnSortByCreatedClick(object? sender, RoutedEventArgs e) => ToggleSort("created");
+
+    private void OnSortByReadyClick(object? sender, RoutedEventArgs e) => ToggleSort("ready");
 
     private bool IsVideoLoadedOrPlaying(string videoPath)
     {
@@ -442,6 +490,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _mediaPlayer.Media = null;
         _currentMedia?.Dispose();
         _currentMedia = null;
+        PlayPauseButtonText = "Play";
         PreviewStatus = "Preview unloaded.";
     }
 
@@ -471,6 +520,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Render first frame in preview without continuing playback.
         _mediaPlayer.Play(_currentMedia);
         _mediaPlayer.SetPause(true);
+        PlayPauseButtonText = "Play";
         PreviewStatus = $"Ready in preview: {Path.GetFileName(videoPath)}";
     }
 
@@ -495,14 +545,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _service.SaveDescription(SelectedEntry, SelectedDescriptionFile, DescriptionText);
         }
 
+        ApplyVideoFilter();
+
         SaveButtonText = "Saved!";
         await Task.Delay(2000);
         SaveButtonText = "Save Selected Video";
+        PlayPauseButtonText = "Play";
     }
 
 
-    private void OnPlayClick(object? sender, RoutedEventArgs e)
+    private void OnPlayPauseClick(object? sender, RoutedEventArgs e)
     {
+        if (_mediaPlayer.IsPlaying)
+        {
+            _mediaPlayer.Pause();
+            PlayPauseButtonText = "Play";
+            if (SelectedEntry is not null)
+            {
+                PreviewStatus = $"Paused: {Path.GetFileName(SelectedEntry.VideoPath)}";
+            }
+
+            return;
+        }
+
         if (SelectedEntry is null || !File.Exists(SelectedEntry.VideoPath))
         {
             PreviewStatus = "Video file not found in storage.";
@@ -510,20 +575,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         StartEmbeddedPreview(SelectedEntry.VideoPath);
+        PlayPauseButtonText = "Pause";
     }
 
-    private void OnPauseClick(object? sender, RoutedEventArgs e)
-    {
-        _mediaPlayer.Pause();
-        if (SelectedEntry is not null)
-        {
-            PreviewStatus = $"Paused: {Path.GetFileName(SelectedEntry.VideoPath)}";
-        }
-    }
 
     private void OnStopClick(object? sender, RoutedEventArgs e)
     {
         _mediaPlayer.Stop();
+        PlayPauseButtonText = "Play";
         PreviewStatus = "Stopped.";
     }
 
@@ -538,6 +597,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _mediaPlayer.Play(_currentMedia);
+        PlayPauseButtonText = "Pause";
         PreviewStatus = $"Playing in preview: {Path.GetFileName(videoPath)}";
     }
 
