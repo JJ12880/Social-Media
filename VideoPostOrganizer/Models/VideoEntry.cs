@@ -17,7 +17,7 @@ public class VideoEntry
     public bool ReadyForUse { get; set; }
 
     [JsonIgnore]
-    public DateTime? FileCreatedOn => File.Exists(VideoPath) ? File.GetCreationTime(VideoPath) : null;
+    public DateTime? FileCreatedOn => SourceCreationTime ?? (File.Exists(VideoPath) ? File.GetCreationTime(VideoPath) : null);
 
     [JsonIgnore]
     public string FileCreatedDisplay => FileCreatedOn?.ToString("yyyy-MM-dd") ?? "-";

@@ -131,7 +131,7 @@ public class VideoLibraryService
 
         var imported = new List<VideoEntry>();
         var duplicateCount = 0;
-        var existingFingerprints = BuildFingerprintIndex(storageFolder, SupportedVideoExtensions);
+        var fingerprintIndex = BuildFingerprintEntryIndex(storageFolder, SupportedVideoExtensions);
 
         foreach (var jsonPath in Directory.GetFiles(archiveRootFolder, "*.json", SearchOption.AllDirectories))
         {
@@ -175,42 +175,59 @@ public class VideoLibraryService
                         continue;
                     }
 
-                    var fingerprint = ComputeFileFingerprint(sourceVideoPath);
-                    if (existingFingerprints.Contains(fingerprint))
-                    {
-                        duplicateCount++;
-                        continue;
-                    }
-
-                    var videoName = Path.GetFileNameWithoutExtension(sourceVideoPath);
-                    var safeFolderName = string.Join("_", videoName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
-                    if (string.IsNullOrWhiteSpace(safeFolderName))
-                    {
-                        safeFolderName = $"video_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-                    }
-
-                    var targetFolder = GetUniqueFolderPath(Path.Combine(storageFolder, safeFolderName));
-                    Directory.CreateDirectory(targetFolder);
-
-                    var targetVideoPath = Path.Combine(targetFolder, Path.GetFileName(sourceVideoPath));
-                    File.Copy(sourceVideoPath, targetVideoPath, overwrite: true);
-
                     var title = media?["title"]?.GetValue<string>() ?? string.Empty;
-                    var descriptionFile = Path.Combine(targetFolder, "description-1.txt");
-                    File.WriteAllText(descriptionFile, title);
+                    var normalizedTitle = NormalizeTitleForName(title);
+                    var baseName = string.IsNullOrWhiteSpace(normalizedTitle)
+                        ? Path.GetFileNameWithoutExtension(sourceVideoPath)
+                        : normalizedTitle;
 
                     DateTime? sourceCreatedAt = null;
                     var timestamp = media?["creation_timestamp"]?.GetValue<long?>();
                     if (timestamp.HasValue && timestamp.Value > 0)
                     {
                         sourceCreatedAt = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).LocalDateTime;
+                    }
+
+                    var fingerprint = ComputeFileFingerprint(sourceVideoPath);
+                    if (fingerprintIndex.TryGetValue(fingerprint, out var existing))
+                    {
+                        duplicateCount++;
+                        if (IsOlder(sourceCreatedAt, existing.SourceCreationTime))
+                        {
+                            existing.Entry.SourceCreationTime = sourceCreatedAt;
+                            existing.Entry.LastPostDate = sourceCreatedAt?.Date;
+                            if (!string.IsNullOrWhiteSpace(title))
+                            {
+                                SavePrimaryDescription(existing.Entry, title);
+                            }
+
+                            SaveMetadata(existing.Entry);
+                            fingerprintIndex[fingerprint] = new FingerprintEntry(existing.Entry, sourceCreatedAt);
+                        }
+
+                        continue;
+                    }
+
+                    var safeBaseName = ToSafeName(baseName);
+                    var fileName = $"{safeBaseName}{extension}";
+                    var targetFolder = GetUniqueFolderPath(Path.Combine(storageFolder, safeBaseName));
+                    Directory.CreateDirectory(targetFolder);
+
+                    var targetVideoPath = Path.Combine(targetFolder, fileName);
+                    File.Copy(sourceVideoPath, targetVideoPath, overwrite: true);
+
+                    if (sourceCreatedAt.HasValue)
+                    {
                         File.SetLastWriteTime(targetVideoPath, sourceCreatedAt.Value);
                     }
 
+                    var descriptionFile = Path.Combine(targetFolder, "description-1.txt");
+                    File.WriteAllText(descriptionFile, title);
+
                     var entry = new VideoEntry
                     {
-                        VideoName = videoName,
-                        VideoFileName = Path.GetFileName(sourceVideoPath),
+                        VideoName = baseName,
+                        VideoFileName = fileName,
                         VideoPath = targetVideoPath,
                         FolderPath = targetFolder,
                         DescriptionFiles = new List<string> { Path.GetFileName(descriptionFile) },
@@ -221,7 +238,7 @@ public class VideoLibraryService
 
                     SaveMetadata(entry);
                     imported.Add(entry);
-                    existingFingerprints.Add(fingerprint);
+                    fingerprintIndex[fingerprint] = new FingerprintEntry(entry, sourceCreatedAt);
                 }
             }
         }
@@ -430,26 +447,48 @@ public class VideoLibraryService
         throw new IOException("Unable to generate a unique folder name for renamed video.");
     }
 
-    private static string NormalizePerformanceLevel(string? value)
+
+    private static Dictionary<string, FingerprintEntry> BuildFingerprintEntryIndex(string storageFolder, HashSet<string> videoExtensions)
     {
-        return value?.Trim().ToLowerInvariant() switch
+        var index = new Dictionary<string, FingerprintEntry>(StringComparer.Ordinal);
+        foreach (var entry in LoadEntriesForFingerprint(storageFolder, videoExtensions))
         {
-            "low" => "Low",
-            "high" => "High",
-            _ => "Normal"
-        };
+            index[entry.Fingerprint] = new FingerprintEntry(entry.VideoEntry, entry.VideoEntry.SourceCreationTime);
+        }
+
+        return index;
     }
+
     private static HashSet<string> BuildFingerprintIndex(string storageFolder, HashSet<string> videoExtensions)
     {
-        var fingerprints = new HashSet<string>(StringComparer.Ordinal);
+        return LoadEntriesForFingerprint(storageFolder, videoExtensions)
+            .Select(x => x.Fingerprint)
+            .ToHashSet(StringComparer.Ordinal);
+    }
 
+    private static IEnumerable<(string Fingerprint, VideoEntry VideoEntry)> LoadEntriesForFingerprint(string storageFolder, HashSet<string> videoExtensions)
+    {
         if (!Directory.Exists(storageFolder))
         {
-            return fingerprints;
+            yield break;
         }
 
         foreach (var directory in Directory.GetDirectories(storageFolder))
         {
+            var metadataPath = Path.Combine(directory, MetadataFileName);
+            VideoEntry? entry = null;
+            if (File.Exists(metadataPath))
+            {
+                try
+                {
+                    entry = JsonSerializer.Deserialize<VideoEntry>(File.ReadAllText(metadataPath));
+                }
+                catch
+                {
+                    entry = null;
+                }
+            }
+
             var videoPath = Directory
                 .GetFiles(directory)
                 .FirstOrDefault(x => videoExtensions.Contains(Path.GetExtension(x)));
@@ -459,10 +498,96 @@ public class VideoLibraryService
                 continue;
             }
 
-            fingerprints.Add(ComputeFileFingerprint(videoPath));
+            entry ??= new VideoEntry
+            {
+                VideoName = Path.GetFileNameWithoutExtension(videoPath),
+                VideoFileName = Path.GetFileName(videoPath),
+                VideoPath = videoPath,
+                FolderPath = directory
+            };
+
+            entry.FolderPath = directory;
+            entry.VideoPath = videoPath;
+            yield return (ComputeFileFingerprint(videoPath), entry);
+        }
+    }
+
+    private static string NormalizeTitleForName(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return string.Empty;
         }
 
-        return fingerprints;
+        var singleLine = string.Join(' ', title
+            .Replace("\r", " ")
+            .Replace("\n", " ")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+        return singleLine.Length <= 50 ? singleLine : singleLine[..50].TrimEnd();
+    }
+
+    private static string ToSafeName(string value)
+    {
+        var safe = string.Join("_", value.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries)).Trim();
+        if (string.IsNullOrWhiteSpace(safe))
+        {
+            safe = $"video_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        }
+
+        return safe;
+    }
+
+    private static bool IsOlder(DateTime? candidate, DateTime? existing)
+    {
+        if (!candidate.HasValue)
+        {
+            return false;
+        }
+
+        if (!existing.HasValue)
+        {
+            return true;
+        }
+
+        return candidate.Value < existing.Value;
+    }
+
+    private void SavePrimaryDescription(VideoEntry entry, string content)
+    {
+        var descriptionFileName = entry.DescriptionFiles.OrderBy(x => x).FirstOrDefault() ?? "description-1.txt";
+        if (!entry.DescriptionFiles.Contains(descriptionFileName, StringComparer.OrdinalIgnoreCase))
+        {
+            entry.DescriptionFiles.Add(descriptionFileName);
+            entry.DescriptionFiles = entry.DescriptionFiles.OrderBy(x => x).ToList();
+        }
+
+        SaveDescription(entry, descriptionFileName, content);
+    }
+
+    private sealed record FingerprintEntry(VideoEntry Entry, DateTime? SourceCreationTime);
+
+    private static string NormalizePerformanceLevel(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "low" => "Low",
+            "high" => "High",
+            _ => "Normal"
+        };
+    }
+    private static string ResolveVideoPath(string directory, string videoFileName)
+    {
+        var preferredPath = Path.Combine(directory, videoFileName);
+        if (File.Exists(preferredPath))
+        {
+            return preferredPath;
+        }
+
+        return Directory
+            .GetFiles(directory)
+            .FirstOrDefault(x => SupportedVideoExtensions.Contains(Path.GetExtension(x)))
+            ?? preferredPath;
     }
 
     private static string ResolveVideoPath(string directory, string videoFileName)
