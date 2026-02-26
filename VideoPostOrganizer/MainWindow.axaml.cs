@@ -47,19 +47,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private VideoView? _videoView;
     private Media? _currentMedia;
     private bool _isPreviewHostReady;
-    private double _nameColumnWidth = 220;
-    private double _performanceColumnWidth = 120;
-    private double _createdColumnWidth = 110;
-    private double _readyColumnWidth = 80;
     private DateTimeOffset? _selectedScheduleDate = DateTimeOffset.Now.Date;
-    private string _scheduleDefaultTime = "09:00";
+    private string _firstPostTime = "09:00";
+    private string _repeatPostTime = "13:00";
     private string _firstPostSubtype = "post";
     private string _repeatPostSubtype = "reel";
-    private int _repeatEveryDays = 7;
-    private int _repeatCount;
+    private string _repeatEveryDaysText = "7";
     private string _scheduleStatus = "Load storage to start scheduling.";
 
     public ObservableCollection<VideoEntry> Entries { get; } = new();
+    public ObservableCollection<VideoEntry> ReadyEntries { get; } = new();
     public ObservableCollection<string> DescriptionFiles { get; } = new();
     public ObservableCollection<string> CommonHashtags { get; } = new();
     public List<string> PerformanceLevels { get; } = new() { "Low", "Normal", "High" };
@@ -153,16 +150,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
 
-    public double NameColumnWidth { get => _nameColumnWidth; set => SetField(ref _nameColumnWidth, value); }
-    public double PerformanceColumnWidth { get => _performanceColumnWidth; set => SetField(ref _performanceColumnWidth, value); }
-    public double CreatedColumnWidth { get => _createdColumnWidth; set => SetField(ref _createdColumnWidth, value); }
-    public double ReadyColumnWidth { get => _readyColumnWidth; set => SetField(ref _readyColumnWidth, value); }
     public DateTimeOffset? SelectedScheduleDate { get => _selectedScheduleDate; set => SetField(ref _selectedScheduleDate, value); }
-    public string ScheduleDefaultTime { get => _scheduleDefaultTime; set => SetField(ref _scheduleDefaultTime, value); }
+    public string FirstPostTime { get => _firstPostTime; set => SetField(ref _firstPostTime, value); }
+    public string RepeatPostTime { get => _repeatPostTime; set => SetField(ref _repeatPostTime, value); }
     public string FirstPostSubtype { get => _firstPostSubtype; set => SetField(ref _firstPostSubtype, value); }
     public string RepeatPostSubtype { get => _repeatPostSubtype; set => SetField(ref _repeatPostSubtype, value); }
-    public int RepeatEveryDays { get => _repeatEveryDays; set => SetField(ref _repeatEveryDays, Math.Max(1, value)); }
-    public int RepeatCount { get => _repeatCount; set => SetField(ref _repeatCount, Math.Max(0, value)); }
+    public string RepeatEveryDaysText { get => _repeatEveryDaysText; set => SetField(ref _repeatEveryDaysText, value); }
     public string ScheduleStatus { get => _scheduleStatus; set => SetField(ref _scheduleStatus, value); }
 
     private string? PrimaryStorageFolder => ParseStorageFolders().FirstOrDefault();
@@ -262,11 +255,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
 
             var settings = _service.LoadScheduleSettings(PrimaryStorageFolder);
-            ScheduleDefaultTime = settings.DefaultPostTime;
+            FirstPostTime = settings.FirstPostTime;
+            RepeatPostTime = settings.RepeatPostTime;
             FirstPostSubtype = settings.FirstPostSubtype;
             RepeatPostSubtype = settings.RepeatPostSubtype;
-            RepeatEveryDays = settings.RepeatEveryDays;
-            RepeatCount = settings.RepeatCount;
+            RepeatEveryDaysText = settings.RepeatEveryDays.ToString();
             ScheduleStatus = "Schedule loaded.";
         }
     }
@@ -500,6 +493,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             Entries.Add(entry);
         }
+
+        RefreshReadyEntries();
     }
 
 
@@ -517,6 +512,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ("ready", false) => source.OrderByDescending(x => x.ReadyForUse).ThenBy(x => x.VideoName),
             _ => source.OrderBy(x => x.VideoName)
         };
+    }
+
+
+    private void RefreshReadyEntries()
+    {
+        ReadyEntries.Clear();
+        foreach (var entry in Entries.Where(x => x.ReadyForUse).OrderBy(x => x.VideoName))
+        {
+            ReadyEntries.Add(entry);
+        }
     }
 
     private void ToggleSort(string column)
@@ -757,11 +762,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         var settings = new ScheduleSettings
         {
-            DefaultPostTime = ScheduleDefaultTime,
+            FirstPostTime = FirstPostTime,
+            RepeatPostTime = RepeatPostTime,
             FirstPostSubtype = FirstPostSubtype,
             RepeatPostSubtype = RepeatPostSubtype,
-            RepeatEveryDays = RepeatEveryDays,
-            RepeatCount = RepeatCount
+            RepeatEveryDays = int.TryParse(RepeatEveryDaysText, out var days) ? Math.Max(1, days) : 7
         };
 
         _service.SaveScheduleSettings(PrimaryStorageFolder, settings);
@@ -789,13 +794,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        if (!TimeSpan.TryParse(ScheduleDefaultTime, out var postTime))
+        if (!TimeSpan.TryParse(FirstPostTime, out var firstPostTime) || !TimeSpan.TryParse(RepeatPostTime, out var repeatPostTime))
         {
-            ScheduleStatus = "Time must be HH:mm.";
+            ScheduleStatus = "Post times must be HH:mm.";
             return;
         }
 
-        var baseDate = SelectedScheduleDate.Value.Date + postTime;
+        if (!int.TryParse(RepeatEveryDaysText, out var repeatEveryDays) || repeatEveryDays < 1)
+        {
+            ScheduleStatus = "Repeat every must be a positive whole number.";
+            return;
+        }
+
+        var baseDate = SelectedScheduleDate.Value.Date + firstPostTime;
 
         foreach (var entry in selected)
         {
@@ -806,21 +817,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 FolderPath = entry.FolderPath,
                 ScheduledAt = baseDate,
                 PostSubtype = FirstPostSubtype,
-                RepeatEveryDays = RepeatEveryDays
+                RepeatEveryDays = repeatEveryDays
             });
 
-            for (var i = 1; i <= RepeatCount; i++)
+            ScheduledPosts.Add(new ScheduledPost
             {
-                ScheduledPosts.Add(new ScheduledPost
-                {
-                    VideoName = entry.VideoName,
-                    VideoFileName = entry.VideoFileName,
-                    FolderPath = entry.FolderPath,
-                    ScheduledAt = baseDate.AddDays(RepeatEveryDays * i),
-                    PostSubtype = RepeatPostSubtype,
-                    RepeatEveryDays = RepeatEveryDays
-                });
-            }
+                VideoName = entry.VideoName,
+                VideoFileName = entry.VideoFileName,
+                FolderPath = entry.FolderPath,
+                ScheduledAt = SelectedScheduleDate.Value.Date.AddDays(repeatEveryDays) + repeatPostTime,
+                PostSubtype = RepeatPostSubtype,
+                RepeatEveryDays = repeatEveryDays
+            });
         }
 
         PersistSchedule();

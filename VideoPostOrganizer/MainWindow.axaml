@@ -31,21 +31,14 @@
               <TextBox Grid.Column="0" Watermark="Search by video name" Text="{Binding SearchQuery}" />
               <Button Grid.Column="1" Margin="6,0,0,0" Content="X" Width="28" Height="28" Click="OnClearSearchClick" />
             </Grid>
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <TextBlock Text="Col widths:" VerticalAlignment="Center" />
-              <NumericUpDown Width="70" Minimum="80" Maximum="500" Increment="10" Value="{Binding NameColumnWidth}" />
-              <NumericUpDown Width="70" Minimum="60" Maximum="220" Increment="10" Value="{Binding PerformanceColumnWidth}" />
-              <NumericUpDown Width="70" Minimum="60" Maximum="220" Increment="10" Value="{Binding CreatedColumnWidth}" />
-              <NumericUpDown Width="70" Minimum="50" Maximum="160" Increment="10" Value="{Binding ReadyColumnWidth}" />
-            </StackPanel>
 
             <Border BorderThickness="1" BorderBrush="Gray" Height="700">
               <Grid RowDefinitions="Auto,*">
-                <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto" Margin="8,6">
-                  <Button Content="Name" Width="{Binding NameColumnWidth}" HorizontalAlignment="Left" Click="OnSortByNameClick" />
-                  <Button Grid.Column="1" Content="Performance" Width="{Binding PerformanceColumnWidth}" HorizontalAlignment="Left" Click="OnSortByPerformanceClick" />
-                  <Button Grid.Column="2" Content="Created" Width="{Binding CreatedColumnWidth}" HorizontalAlignment="Left" Click="OnSortByCreatedClick" />
-                  <Button Grid.Column="3" Content="Ready" Width="{Binding ReadyColumnWidth}" HorizontalAlignment="Left" Click="OnSortByReadyClick" />
+                <Grid Grid.Row="0" ColumnDefinitions="2*,*,*,Auto" Margin="8,6">
+                  <Button Content="Name" HorizontalAlignment="Stretch" Click="OnSortByNameClick" />
+                  <Button Grid.Column="1" Content="Performance" HorizontalAlignment="Stretch" Click="OnSortByPerformanceClick" />
+                  <Button Grid.Column="2" Content="Created" HorizontalAlignment="Stretch" Click="OnSortByCreatedClick" />
+                  <Button Grid.Column="3" Content="Ready" HorizontalAlignment="Stretch" Click="OnSortByReadyClick" />
                 </Grid>
 
                 <ListBox Grid.Row="1"
@@ -53,11 +46,11 @@
                          SelectedItem="{Binding SelectedEntry}">
                   <ListBox.ItemTemplate>
                     <DataTemplate>
-                      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" Margin="8,4">
-                        <TextBlock Text="{Binding VideoName}" Width="{Binding #Root.NameColumnWidth}" />
-                        <TextBlock Grid.Column="1" Text="{Binding PerformanceLevel}" Width="{Binding #Root.PerformanceColumnWidth}" />
-                        <TextBlock Grid.Column="2" Text="{Binding FileCreatedDisplay}" Width="{Binding #Root.CreatedColumnWidth}" />
-                        <TextBlock Grid.Column="3" Text="{Binding ReadyForUse}" Width="{Binding #Root.ReadyColumnWidth}" />
+                      <Grid ColumnDefinitions="2*,*,*,Auto" Margin="8,4">
+                        <TextBlock Text="{Binding VideoName}" />
+                        <TextBlock Grid.Column="1" Text="{Binding PerformanceLevel}" />
+                        <TextBlock Grid.Column="2" Text="{Binding FileCreatedDisplay}" />
+                        <TextBlock Grid.Column="3" Text="{Binding ReadyForUse}" />
                       </Grid>
                     </DataTemplate>
                   </ListBox.ItemTemplate>
@@ -140,26 +133,29 @@
       <Grid ColumnDefinitions="350,*,340" RowDefinitions="Auto,*" Margin="0,6,0,0">
         <Border Grid.ColumnSpan="3" BorderThickness="1" BorderBrush="Gray" Padding="8" Margin="0,0,0,8">
           <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="Default Post Time (HH:mm):" VerticalAlignment="Center" />
-            <TextBox Width="80" Text="{Binding ScheduleDefaultTime}" />
+            <TextBlock Text="First Post Time (HH:mm):" VerticalAlignment="Center" />
+            <TextBox Width="80" Text="{Binding FirstPostTime}" />
             <TextBlock Text="First subtype:" VerticalAlignment="Center" />
             <ComboBox Width="100" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding FirstPostSubtype}" />
             <TextBlock Text="Repeat subtype:" VerticalAlignment="Center" />
             <ComboBox Width="100" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding RepeatPostSubtype}" />
             <TextBlock Text="Repeat every (days):" VerticalAlignment="Center" />
-            <NumericUpDown Width="80" Minimum="1" Maximum="365" Value="{Binding RepeatEveryDays}" />
-            <TextBlock Text="Repeat count:" VerticalAlignment="Center" />
-            <NumericUpDown Width="80" Minimum="0" Maximum="30" Value="{Binding RepeatCount}" />
+            <TextBox Width="80" Text="{Binding RepeatEveryDaysText}" />
+            <TextBlock Text="Repeat post time (HH:mm):" VerticalAlignment="Center" />
+            <TextBox Width="80" Text="{Binding RepeatPostTime}" />
             <Button Content="Save settings" Click="OnSaveScheduleSettingsClick" />
           </StackPanel>
         </Border>
 
         <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
           <TextBlock Text="Videos to schedule" FontWeight="Bold" />
-          <ListBox x:Name="ScheduleVideoList" Height="650" SelectionMode="Multiple" ItemsSource="{Binding Entries}">
+          <ListBox x:Name="ScheduleVideoList" Height="650" SelectionMode="Multiple" ItemsSource="{Binding ReadyEntries}">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <TextBlock Text="{Binding VideoName}" />
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding VideoName}" />
+                  <TextBlock Text="{Binding PerformanceLevel, StringFormat=Quality: {0}}" FontSize="11" Opacity="0.75" />
+                </StackPanel>
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>

@@ -590,20 +590,6 @@ public class VideoLibraryService
             ?? preferredPath;
     }
 
-    private static string ResolveVideoPath(string directory, string videoFileName)
-    {
-        var preferredPath = Path.Combine(directory, videoFileName);
-        if (File.Exists(preferredPath))
-        {
-            return preferredPath;
-        }
-
-        return Directory
-            .GetFiles(directory)
-            .FirstOrDefault(x => SupportedVideoExtensions.Contains(Path.GetExtension(x)))
-            ?? preferredPath;
-    }
-
     private static string ComputeFileFingerprint(string filePath)
     {
         const int partialThresholdBytes = 64 * 1024 * 1024;
