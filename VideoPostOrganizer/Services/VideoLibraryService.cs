@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Security.Cryptography;
 using VideoPostOrganizer.Models;
 
@@ -113,6 +114,116 @@ public class VideoLibraryService
             SaveMetadata(entry);
             imported.Add(entry);
             existingFingerprints.Add(sourceFingerprint);
+        }
+
+        return new ImportResult(imported.OrderBy(x => x.VideoName).ToList(), duplicateCount);
+    }
+
+
+    public ImportResult ImportInstagramArchive(string archiveRootFolder, string storageFolder)
+    {
+        if (!Directory.Exists(archiveRootFolder))
+        {
+            throw new DirectoryNotFoundException($"Archive folder does not exist: {archiveRootFolder}");
+        }
+
+        Directory.CreateDirectory(storageFolder);
+
+        var imported = new List<VideoEntry>();
+        var duplicateCount = 0;
+        var existingFingerprints = BuildFingerprintIndex(storageFolder, SupportedVideoExtensions);
+
+        foreach (var jsonPath in Directory.GetFiles(archiveRootFolder, "*.json", SearchOption.AllDirectories))
+        {
+            JsonNode? root;
+            try
+            {
+                root = JsonNode.Parse(File.ReadAllText(jsonPath));
+            }
+            catch
+            {
+                continue;
+            }
+
+            var reels = root?["ig_reels_media"]?.AsArray();
+            if (reels is null)
+            {
+                continue;
+            }
+
+            foreach (var reel in reels)
+            {
+                var mediaArray = reel?["media"]?.AsArray();
+                if (mediaArray is null)
+                {
+                    continue;
+                }
+
+                foreach (var media in mediaArray)
+                {
+                    var uri = media?["uri"]?.GetValue<string>();
+                    if (string.IsNullOrWhiteSpace(uri))
+                    {
+                        continue;
+                    }
+
+                    var normalizedRelativePath = uri.Replace('/', Path.DirectorySeparatorChar);
+                    var sourceVideoPath = Path.Combine(archiveRootFolder, normalizedRelativePath);
+                    var extension = Path.GetExtension(sourceVideoPath);
+                    if (!File.Exists(sourceVideoPath) || !SupportedVideoExtensions.Contains(extension))
+                    {
+                        continue;
+                    }
+
+                    var fingerprint = ComputeFileFingerprint(sourceVideoPath);
+                    if (existingFingerprints.Contains(fingerprint))
+                    {
+                        duplicateCount++;
+                        continue;
+                    }
+
+                    var videoName = Path.GetFileNameWithoutExtension(sourceVideoPath);
+                    var safeFolderName = string.Join("_", videoName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+                    if (string.IsNullOrWhiteSpace(safeFolderName))
+                    {
+                        safeFolderName = $"video_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                    }
+
+                    var targetFolder = GetUniqueFolderPath(Path.Combine(storageFolder, safeFolderName));
+                    Directory.CreateDirectory(targetFolder);
+
+                    var targetVideoPath = Path.Combine(targetFolder, Path.GetFileName(sourceVideoPath));
+                    File.Copy(sourceVideoPath, targetVideoPath, overwrite: true);
+
+                    var title = media?["title"]?.GetValue<string>() ?? string.Empty;
+                    var descriptionFile = Path.Combine(targetFolder, "description-1.txt");
+                    File.WriteAllText(descriptionFile, title);
+
+                    DateTime? sourceCreatedAt = null;
+                    var timestamp = media?["creation_timestamp"]?.GetValue<long?>();
+                    if (timestamp.HasValue && timestamp.Value > 0)
+                    {
+                        sourceCreatedAt = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).LocalDateTime;
+                        File.SetLastWriteTime(targetVideoPath, sourceCreatedAt.Value);
+                    }
+
+                    var entry = new VideoEntry
+                    {
+                        VideoName = videoName,
+                        VideoFileName = Path.GetFileName(sourceVideoPath),
+                        VideoPath = targetVideoPath,
+                        FolderPath = targetFolder,
+                        DescriptionFiles = new List<string> { Path.GetFileName(descriptionFile) },
+                        PerformanceLevel = "Normal",
+                        SourceCreationTime = sourceCreatedAt,
+                        LastPostDate = sourceCreatedAt?.Date
+                    };
+
+                    SaveMetadata(entry);
+                    imported.Add(entry);
+                    existingFingerprints.Add(fingerprint);
+                }
+            }
         }
 
         return new ImportResult(imported.OrderBy(x => x.VideoName).ToList(), duplicateCount);

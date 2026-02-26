@@ -289,6 +289,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await ShowMessageAsync($"Imported {result.ImportedEntries.Count} videos. Skipped duplicates: {result.DuplicateCount}.");
     }
 
+
+    private async void OnImportInstagramArchiveClick(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        {
+            await ShowMessageAsync("Load at least one storage folder first.");
+            return;
+        }
+
+        var archiveFolder = await PickFolderAsync();
+        if (string.IsNullOrWhiteSpace(archiveFolder))
+        {
+            return;
+        }
+
+        var result = _service.ImportInstagramArchive(archiveFolder, PrimaryStorageFolder);
+        _allEntries = _allEntries
+            .Concat(result.ImportedEntries)
+            .OrderBy(x => x.VideoName)
+            .ToList();
+        ApplyVideoFilter();
+
+        await ShowMessageAsync($"Imported {result.ImportedEntries.Count} IG videos. Skipped duplicates: {result.DuplicateCount}.");
+    }
+
     private async void OnRenameClick(object? sender, RoutedEventArgs e)
     {
         if (SelectedEntry is null)

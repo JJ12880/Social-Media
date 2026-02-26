@@ -18,7 +18,10 @@
           <TextBlock Grid.Row="1" Text="Source videos:" VerticalAlignment="Center" />
           <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SourceFolderText}" />
           <Button Grid.Row="1" Grid.Column="2" Content="Browse" Click="OnBrowseSourceClick" />
-          <Button Grid.Row="1" Grid.Column="3" Content="Import Videos" Click="OnImportClick" />
+          <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Spacing="6">
+            <Button Content="Import Videos" Click="OnImportClick" />
+            <Button Content="Import IG Archive" Click="OnImportInstagramArchiveClick" />
+          </StackPanel>
         </Grid>
 
         <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="430,560,*">

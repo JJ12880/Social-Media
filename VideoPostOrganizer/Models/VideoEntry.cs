@@ -13,6 +13,7 @@ public class VideoEntry
     public string PerformanceLevel { get; set; } = "Normal";
     public List<string> Tags { get; set; } = new();
     public DateTime? LastPostDate { get; set; }
+    public DateTime? SourceCreationTime { get; set; }
     public bool ReadyForUse { get; set; }
 
     [JsonIgnore]
