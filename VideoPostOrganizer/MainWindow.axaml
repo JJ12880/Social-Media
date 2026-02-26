@@ -85,6 +85,7 @@
                         ItemsSource="{Binding DescriptionFiles}"
                         SelectedItem="{Binding SelectedDescriptionFile}" />
               <Button Content="Add Description" Click="OnAddDescriptionClick" />
+              <Button Content="Refresh Description" Click="OnRefreshDescriptionClick" />
             </StackPanel>
 
             <TextBox AcceptsReturn="True" Height="147" TextWrapping="Wrap" Text="{Binding DescriptionText}" />

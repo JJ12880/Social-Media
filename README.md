@@ -33,3 +33,12 @@ dotnet restore VideoPostOrganizer/VideoPostOrganizer.csproj --packages $HOME/.nu
 dotnet build VideoPostOrganizer/VideoPostOrganizer.csproj --no-restore -c Release
 dotnet run --project VideoPostOrganizer/VideoPostOrganizer.csproj --no-build
 ```
+
+## ChatGPT description refresh setup
+
+The **Refresh Description** button uses the official OpenAI .NET SDK to rewrite the selected caption while preserving meaning, @mentions, and URLs, removing hashtags, and enforcing length guardrails.
+
+1. Copy `VideoPostOrganizer/appsettings.Local.example.json` to `VideoPostOrganizer/appsettings.Local.json`.
+2. Put your API key in `OpenAI:ApiKey` (or set `OPENAI_API_KEY` environment variable).
+3. Keep `appsettings.Local.json` out of source control (already ignored).
+

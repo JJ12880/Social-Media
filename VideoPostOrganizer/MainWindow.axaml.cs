@@ -21,6 +21,7 @@ namespace VideoPostOrganizer;
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly VideoLibraryService _service = new();
+    private readonly DescriptionFreshener _descriptionFreshener;
 
     private string _storageFoldersText = string.Empty;
     private string _sourceFolderText = string.Empty;
@@ -73,6 +74,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public MainWindow()
     {
+        _descriptionFreshener = new DescriptionFreshener(DescriptionFreshener.LoadSettings(AppContext.BaseDirectory));
         Core.Initialize();
         _libVlc = new LibVLC();
         _mediaPlayer = new MediaPlayer(_libVlc);
@@ -361,6 +363,40 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var file = _service.AddDescription(SelectedEntry);
         DescriptionFiles.Add(file);
         SelectedDescriptionFile = file;
+    }
+
+    private async void OnRefreshDescriptionClick(object? sender, RoutedEventArgs e)
+    {
+        if (SelectedEntry is null)
+        {
+            await ShowMessageAsync("Select a video first.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(DescriptionText))
+        {
+            await ShowMessageAsync("Description is empty.");
+            return;
+        }
+
+        if (!_descriptionFreshener.IsConfigured)
+        {
+            await ShowMessageAsync("OpenAI API key is missing. Set OPENAI_API_KEY or appsettings.Local.json.");
+            return;
+        }
+
+        try
+        {
+            var styleSamples = LoadStyleSamples();
+            var rewritten = await _descriptionFreshener.RefreshDescriptionAsync(DescriptionText, styleSamples);
+            DescriptionText = rewritten;
+            SaveButtonText = "Review & Save";
+            PreviewStatus = "Description refreshed for style and guardrails.";
+        }
+        catch (Exception ex)
+        {
+            await ShowMessageAsync($"Unable to refresh description: {ex.Message}");
+        }
     }
 
     private async void OnOpenExternallyClick(object? sender, RoutedEventArgs e)
@@ -910,6 +946,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         var trimmed = value.Trim();
         return trimmed.StartsWith('#') ? trimmed : $"#{trimmed}";
+    }
+
+    private List<string> LoadStyleSamples()
+    {
+        var samples = new List<string>();
+        foreach (var entry in _allEntries)
+        {
+            foreach (var file in entry.DescriptionFiles)
+            {
+                var text = _service.LoadDescription(entry, file);
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    samples.Add(text.Trim());
+                }
+            }
+        }
+
+        return samples;
     }
 
     private async Task<string?> PickFolderAsync()
