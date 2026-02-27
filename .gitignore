@@ -11,3 +11,5 @@ VideoPostOrganizer.sln
 
 # Local secrets
 VideoPostOrganizer/appsettings.Local.json
+
+VideoPostOrganizer/appsettings.json
