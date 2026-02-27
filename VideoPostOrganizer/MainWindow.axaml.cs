@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -20,6 +21,12 @@ namespace VideoPostOrganizer;
 
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
+    private static readonly Regex HashtagRegex = new(@"(^|\s)#[\p{L}\p{N}_]+", RegexOptions.Compiled);
+    private static readonly Dictionary<string, string> DescriptionKeywordHashtags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["swarm"] = "#swarm",
+        ["queen"] = "#honeybeequeen"
+    };
     private readonly VideoLibraryService _service = new();
     private readonly DescriptionFreshener _descriptionFreshener;
     private readonly HashtagRuleEngine _hashtagRuleEngine = new();
@@ -34,11 +41,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _performanceLevel = "Normal";
     private DateTimeOffset? _lastPostDate;
     private string _tagsText = string.Empty;
-    private string _newHashtag = string.Empty;
     private string _searchQuery = string.Empty;
     private string _generatedHashtagsText = string.Empty;
-    private string _hashtagComposeSubtype = "post";
-    private string _selectedHashtagTier = "Niche";
     private bool _readyForUse;
     private string _saveButtonText = "Save Selected Video";
     private string _playPauseButtonText = "Play";
@@ -63,8 +67,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _coreCountText = "3";
     private string _nicheCountText = "5";
     private string _testCountText = "2";
-    private string _postMaxTagsText = "8";
-    private string _reelMaxTagsText = "12";
+    private string _maxTagsText = "12";
     private string _cooldownDaysText = "7";
 
     public ObservableCollection<VideoEntry> Entries { get; } = new();
@@ -75,7 +78,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public ObservableCollection<string> TestHashtags { get; } = new();
     public List<string> PerformanceLevels { get; } = new() { "Low", "Normal", "High" };
     public List<string> PostSubtypes { get; } = new() { "post", "reel" };
-    public List<string> HashtagTiers { get; } = new() { "Core", "Niche", "Test" };
     public ObservableCollection<ScheduledPost> ScheduledPosts { get; } = new();
 
     private event PropertyChangedEventHandler? ViewModelPropertyChanged;
@@ -102,6 +104,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (_videoView != null && _videoView.MediaPlayer != _mediaPlayer)
             {
                 _videoView.MediaPlayer = _mediaPlayer;
+            }
+
+            if (SelectedEntry is not null)
+            {
+                PrepareEmbeddedPreview(SelectedEntry.VideoPath);
             }
         };
         Closed += OnWindowClosed;
@@ -147,10 +154,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string PerformanceLevel { get => _performanceLevel; set => SetField(ref _performanceLevel, value); }
     public DateTimeOffset? LastPostDate { get => _lastPostDate; set => SetField(ref _lastPostDate, value); }
     public string TagsText { get => _tagsText; set => SetField(ref _tagsText, value); }
-    public string NewHashtag { get => _newHashtag; set => SetField(ref _newHashtag, value); }
     public string GeneratedHashtagsText { get => _generatedHashtagsText; set => SetField(ref _generatedHashtagsText, value); }
-    public string HashtagComposeSubtype { get => _hashtagComposeSubtype; set => SetField(ref _hashtagComposeSubtype, value); }
-    public string SelectedHashtagTier { get => _selectedHashtagTier; set => SetField(ref _selectedHashtagTier, value); }
     public bool ReadyForUse { get => _readyForUse; set => SetField(ref _readyForUse, value); }
     public string SaveButtonText { get => _saveButtonText; set => SetField(ref _saveButtonText, value); }
     public string PlayPauseButtonText { get => _playPauseButtonText; set => SetField(ref _playPauseButtonText, value); }
@@ -179,8 +183,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string CoreCountText { get => _coreCountText; set => SetField(ref _coreCountText, value); }
     public string NicheCountText { get => _nicheCountText; set => SetField(ref _nicheCountText, value); }
     public string TestCountText { get => _testCountText; set => SetField(ref _testCountText, value); }
-    public string PostMaxTagsText { get => _postMaxTagsText; set => SetField(ref _postMaxTagsText, value); }
-    public string ReelMaxTagsText { get => _reelMaxTagsText; set => SetField(ref _reelMaxTagsText, value); }
+    public string MaxTagsText { get => _maxTagsText; set => SetField(ref _maxTagsText, value); }
     public string CooldownDaysText { get => _cooldownDaysText; set => SetField(ref _cooldownDaysText, value); }
 
     private string? PrimaryStorageFolder => ParseStorageFolders().FirstOrDefault();
@@ -226,23 +229,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DescriptionText = _service.LoadDescription(SelectedEntry, SelectedDescriptionFile);
     }
 
-    private async void OnAddStorageClick(object? sender, RoutedEventArgs e)
-    {
-        var folder = await PickFolderAsync();
-        if (string.IsNullOrWhiteSpace(folder))
-        {
-            return;
-        }
-
-        var set = ParseStorageFolders();
-        if (!set.Contains(folder, StringComparer.OrdinalIgnoreCase))
-        {
-            set.Add(folder);
-        }
-
-        StorageFoldersText = string.Join(";", set);
-    }
-
     private async void OnBrowseSourceClick(object? sender, RoutedEventArgs e)
     {
         var folder = await PickFolderAsync();
@@ -257,56 +243,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SearchQuery = string.Empty;
     }
 
-    private void OnLoadStorageClick(object? sender, RoutedEventArgs e)
+    private async void OnLoadStorageClick(object? sender, RoutedEventArgs e)
     {
-        _allEntries = ParseStorageFolders()
-            .SelectMany(_service.LoadFromStorage)
-            .OrderBy(x => x.VideoName)
-            .ToList();
-        ApplyVideoFilter();
-
-        CoreHashtags.Clear();
-        NicheHashtags.Clear();
-        TestHashtags.Clear();
-        ScheduledPosts.Clear();
-        if (!string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        var folder = await PickFolderAsync();
+        if (string.IsNullOrWhiteSpace(folder))
         {
-            _hashtagRuleSet = _service.LoadHashtagRules(PrimaryStorageFolder);
-            foreach (var tag in _hashtagRuleSet.CoreHashtags)
-            {
-                CoreHashtags.Add(tag);
-            }
-
-            foreach (var tag in _hashtagRuleSet.NicheHashtags)
-            {
-                NicheHashtags.Add(tag);
-            }
-
-            foreach (var tag in _hashtagRuleSet.TestHashtags)
-            {
-                TestHashtags.Add(tag);
-            }
-
-            CoreCountText = _hashtagRuleSet.CoreCount.ToString();
-            NicheCountText = _hashtagRuleSet.NicheCount.ToString();
-            TestCountText = _hashtagRuleSet.TestCount.ToString();
-            PostMaxTagsText = _hashtagRuleSet.PostMaxTags.ToString();
-            ReelMaxTagsText = _hashtagRuleSet.ReelMaxTags.ToString();
-            CooldownDaysText = _hashtagRuleSet.CooldownDays.ToString();
-
-            foreach (var post in _service.LoadSchedule(PrimaryStorageFolder))
-            {
-                ScheduledPosts.Add(post);
-            }
-
-            var settings = _service.LoadScheduleSettings(PrimaryStorageFolder);
-            FirstPostTime = settings.FirstPostTime;
-            RepeatPostTime = settings.RepeatPostTime;
-            FirstPostSubtype = settings.FirstPostSubtype;
-            RepeatPostSubtype = settings.RepeatPostSubtype;
-            RepeatEveryDaysText = settings.RepeatEveryDays.ToString();
-            ScheduleStatus = "Schedule loaded.";
+            return;
         }
+
+        StorageFoldersText = folder;
+        LoadStorageInternal();
     }
 
     private async void OnImportClick(object? sender, RoutedEventArgs e)
@@ -371,7 +317,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _service.RenameVideo(SelectedEntry, newName);
-        OnLoadStorageClick(sender, e);
+        LoadStorageInternal();
     }
 
     private async void OnDeleteClick(object? sender, RoutedEventArgs e)
@@ -392,7 +338,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _service.DeleteVideo(SelectedEntry);
-        OnLoadStorageClick(sender, e);
+        LoadStorageInternal();
     }
 
     private async void OnAddDescriptionClick(object? sender, RoutedEventArgs e)
@@ -503,56 +449,33 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private async void OnAddRuleHashtagClick(object? sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(NewHashtag))
-        {
-            return;
-        }
+    private async void OnAddCoreHashtagClick(object? sender, RoutedEventArgs e)
+        => await PromptAndAddHashtagAsync(CoreHashtags, "Add core hashtag");
 
-        var targetCollection = GetTierCollection(SelectedHashtagTier);
-        var normalized = HashtagRuleEngine.Normalize(NewHashtag);
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return;
-        }
+    private async void OnAddNicheHashtagClick(object? sender, RoutedEventArgs e)
+        => await PromptAndAddHashtagAsync(NicheHashtags, "Add niche hashtag");
 
-        if (!targetCollection.Contains(normalized, StringComparer.OrdinalIgnoreCase))
-        {
-            targetCollection.Add(normalized);
-            await SaveHashtagRulesInternalAsync();
-            NewHashtag = string.Empty;
-        }
-    }
+    private async void OnAddTestHashtagClick(object? sender, RoutedEventArgs e)
+        => await PromptAndAddHashtagAsync(TestHashtags, "Add test hashtag");
 
-    private async void OnRemoveRuleHashtagsClick(object? sender, RoutedEventArgs e)
-    {
-        var coreSelected = this.FindControl<ListBox>("CoreHashtagsList")?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
-        var nicheSelected = this.FindControl<ListBox>("NicheHashtagsList")?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
-        var testSelected = this.FindControl<ListBox>("TestHashtagsList")?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
+    private async void OnRemoveCoreHashtagsClick(object? sender, RoutedEventArgs e)
+        => await RemoveSelectedHashtagsAsync("CoreHashtagsList", CoreHashtags);
 
-        foreach (var tag in coreSelected)
-        {
-            CoreHashtags.Remove(tag);
-        }
+    private async void OnRemoveNicheHashtagsClick(object? sender, RoutedEventArgs e)
+        => await RemoveSelectedHashtagsAsync("NicheHashtagsList", NicheHashtags);
 
-        foreach (var tag in nicheSelected)
-        {
-            NicheHashtags.Remove(tag);
-        }
-
-        foreach (var tag in testSelected)
-        {
-            TestHashtags.Remove(tag);
-        }
-
-        await SaveHashtagRulesInternalAsync();
-    }
+    private async void OnRemoveTestHashtagsClick(object? sender, RoutedEventArgs e)
+        => await RemoveSelectedHashtagsAsync("TestHashtagsList", TestHashtags);
 
     private async void OnGenerateHashtagsClick(object? sender, RoutedEventArgs e)
     {
         SyncHashtagRulesFromUi();
-        var result = _hashtagRuleEngine.BuildHashtags(_hashtagRuleSet, _allEntries, HashtagComposeSubtype);
+        var combinedDescriptionHashtags = CollectLibraryDescriptionHashtags()
+            .Concat(ExtractHashtagsFromText(DescriptionText))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var result = _hashtagRuleEngine.BuildHashtags(_hashtagRuleSet, _allEntries, combinedDescriptionHashtags);
         GeneratedHashtagsText = string.Join(Environment.NewLine, result);
         await SaveHashtagRulesInternalAsync();
     }
@@ -646,6 +569,57 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OnSortByReadyClick(object? sender, RoutedEventArgs e) => ToggleSort("ready");
 
+    private void LoadStorageInternal()
+    {
+        _allEntries = ParseStorageFolders()
+            .SelectMany(_service.LoadFromStorage)
+            .OrderBy(x => x.VideoName)
+            .ToList();
+        ApplyVideoFilter();
+
+        CoreHashtags.Clear();
+        NicheHashtags.Clear();
+        TestHashtags.Clear();
+        ScheduledPosts.Clear();
+        if (!string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        {
+            _hashtagRuleSet = _service.LoadHashtagRules(PrimaryStorageFolder);
+            foreach (var tag in _hashtagRuleSet.CoreHashtags)
+            {
+                CoreHashtags.Add(tag);
+            }
+
+            foreach (var tag in _hashtagRuleSet.NicheHashtags)
+            {
+                NicheHashtags.Add(tag);
+            }
+
+            foreach (var tag in _hashtagRuleSet.TestHashtags)
+            {
+                TestHashtags.Add(tag);
+            }
+
+            CoreCountText = _hashtagRuleSet.CoreCount.ToString();
+            NicheCountText = _hashtagRuleSet.NicheCount.ToString();
+            TestCountText = _hashtagRuleSet.TestCount.ToString();
+            MaxTagsText = _hashtagRuleSet.MaxTags.ToString();
+            CooldownDaysText = _hashtagRuleSet.CooldownDays.ToString();
+
+            foreach (var post in _service.LoadSchedule(PrimaryStorageFolder))
+            {
+                ScheduledPosts.Add(post);
+            }
+
+            var settings = _service.LoadScheduleSettings(PrimaryStorageFolder);
+            FirstPostTime = settings.FirstPostTime;
+            RepeatPostTime = settings.RepeatPostTime;
+            FirstPostSubtype = settings.FirstPostSubtype;
+            RepeatPostSubtype = settings.RepeatPostSubtype;
+            RepeatEveryDaysText = settings.RepeatEveryDays.ToString();
+            ScheduleStatus = "Schedule loaded.";
+        }
+    }
+
     private bool IsVideoLoadedOrPlaying(string videoPath)
     {
         var selectedUri = new Uri(videoPath).AbsoluteUri;
@@ -705,16 +679,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
 
-    private ObservableCollection<string> GetTierCollection(string? tier)
-    {
-        return tier?.Trim().ToLowerInvariant() switch
-        {
-            "core" => CoreHashtags,
-            "test" => TestHashtags,
-            _ => NicheHashtags
-        };
-    }
-
     private async Task SaveHashtagRulesInternalAsync()
     {
         if (string.IsNullOrWhiteSpace(PrimaryStorageFolder))
@@ -736,8 +700,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _hashtagRuleSet.CoreCount = ParseNonNegative(CoreCountText, 3);
         _hashtagRuleSet.NicheCount = ParseNonNegative(NicheCountText, 5);
         _hashtagRuleSet.TestCount = ParseNonNegative(TestCountText, 2);
-        _hashtagRuleSet.PostMaxTags = ParsePositive(PostMaxTagsText, 8);
-        _hashtagRuleSet.ReelMaxTags = ParsePositive(ReelMaxTagsText, 12);
+        _hashtagRuleSet.MaxTags = ParsePositive(MaxTagsText, 12);
         _hashtagRuleSet.CooldownDays = ParseNonNegative(CooldownDaysText, 7);
     }
 
@@ -1060,6 +1023,93 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var dialog = new InputPromptWindow(title, message, initialValue);
         return await dialog.ShowDialog<string?>(this);
+    }
+
+    private async Task PromptAndAddHashtagAsync(ObservableCollection<string> target, string title)
+    {
+        var input = await PromptAsync(title, "Enter hashtag text:", string.Empty);
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return;
+        }
+
+        var normalized = HashtagRuleEngine.Normalize(input);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        if (!target.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            target.Add(normalized);
+            await SaveHashtagRulesInternalAsync();
+        }
+    }
+
+    private async Task RemoveSelectedHashtagsAsync(string listName, ObservableCollection<string> target)
+    {
+        var selected = this.FindControl<ListBox>(listName)?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var tag in selected)
+        {
+            target.Remove(tag);
+        }
+
+        await SaveHashtagRulesInternalAsync();
+    }
+
+    private List<string> CollectLibraryDescriptionHashtags()
+    {
+        var collected = new List<string>();
+        foreach (var entry in _allEntries)
+        {
+            foreach (var file in entry.DescriptionFiles)
+            {
+                var text = _service.LoadDescription(entry, file);
+                collected.AddRange(ExtractHashtagsFromText(text));
+            }
+        }
+
+        return collected
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<string> ExtractHashtagsFromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new List<string>();
+        }
+
+        var results = new List<string>();
+
+        foreach (Match match in HashtagRegex.Matches(text))
+        {
+            var tag = match.Value.Trim();
+            if (!string.IsNullOrWhiteSpace(tag))
+            {
+                results.Add(HashtagRuleEngine.Normalize(tag));
+            }
+        }
+
+        foreach (var pair in DescriptionKeywordHashtags)
+        {
+            var pattern = $@"\b{Regex.Escape(pair.Key)}\w*\b";
+            if (Regex.IsMatch(text, pattern, RegexOptions.IgnoreCase))
+            {
+                results.Add(HashtagRuleEngine.Normalize(pair.Value));
+            }
+        }
+
+        return results
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

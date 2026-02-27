@@ -306,6 +306,7 @@ public class VideoLibraryService
             try
             {
                 var json = File.ReadAllText(rulesPath);
+                var legacyMaxTags = TryReadLegacyMaxTags(json);
                 var loaded = JsonSerializer.Deserialize<HashtagRuleSet>(json);
                 if (loaded != null)
                 {
@@ -315,8 +316,12 @@ public class VideoLibraryService
                     loaded.CoreCount = Math.Max(0, loaded.CoreCount);
                     loaded.NicheCount = Math.Max(0, loaded.NicheCount);
                     loaded.TestCount = Math.Max(0, loaded.TestCount);
-                    loaded.PostMaxTags = Math.Max(1, loaded.PostMaxTags);
-                    loaded.ReelMaxTags = Math.Max(1, loaded.ReelMaxTags);
+                    loaded.MaxTags = Math.Max(1, loaded.MaxTags);
+                    if (legacyMaxTags.HasValue)
+                    {
+                        loaded.MaxTags = Math.Max(1, legacyMaxTags.Value);
+                    }
+
                     loaded.CooldownDays = Math.Max(0, loaded.CooldownDays);
                     return loaded;
                 }
@@ -357,8 +362,7 @@ public class VideoLibraryService
         rules.CoreCount = Math.Max(0, rules.CoreCount);
         rules.NicheCount = Math.Max(0, rules.NicheCount);
         rules.TestCount = Math.Max(0, rules.TestCount);
-        rules.PostMaxTags = Math.Max(1, rules.PostMaxTags);
-        rules.ReelMaxTags = Math.Max(1, rules.ReelMaxTags);
+        rules.MaxTags = Math.Max(1, rules.MaxTags);
         rules.CooldownDays = Math.Max(0, rules.CooldownDays);
 
         var rulesPath = Path.Combine(storageFolder, HashtagRulesFileName);
@@ -603,6 +607,36 @@ public class VideoLibraryService
     }
 
     private sealed record FingerprintEntry(VideoEntry Entry, DateTime? SourceCreationTime);
+
+    private static int? TryReadLegacyMaxTags(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("MaxTags", out _))
+            {
+                return null;
+            }
+
+            var legacyValues = new List<int>();
+            if (root.TryGetProperty("PostMaxTags", out var postElement) && postElement.TryGetInt32(out var postMax))
+            {
+                legacyValues.Add(postMax);
+            }
+
+            if (root.TryGetProperty("ReelMaxTags", out var reelElement) && reelElement.TryGetInt32(out var reelMax))
+            {
+                legacyValues.Add(reelMax);
+            }
+
+            return legacyValues.Count == 0 ? null : legacyValues.Max();
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
 
     private static List<string> NormalizeHashtags(IEnumerable<string> hashtags)

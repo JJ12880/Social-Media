@@ -8,31 +8,31 @@
         Height="860">
   <TabControl Margin="10">
     <TabItem Header="Library">
-      <Grid RowDefinitions="Auto,*" ColumnDefinitions="*">
-        <Grid Row="0" ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
-          <TextBlock Text="Storage folders:" VerticalAlignment="Center" />
-          <TextBox Grid.Column="1" Text="{Binding StorageFoldersText}" />
-          <Button Grid.Column="2" Content="Add Storage" Click="OnAddStorageClick" />
-          <Button Grid.Column="3" Content="Load Storage" Click="OnLoadStorageClick" />
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+        <Grid RowDefinitions="Auto,*" ColumnDefinitions="*">
+          <Grid Row="0" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+            <TextBlock Text="Storage folders:" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding StorageFoldersText}" Margin="8,0,8,0" />
+            <Button Grid.Column="2" Content="Load Storage" Click="OnLoadStorageClick" />
 
-          <TextBlock Grid.Row="1" Text="Source videos:" VerticalAlignment="Center" />
-          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SourceFolderText}" />
-          <Button Grid.Row="1" Grid.Column="2" Content="Browse" Click="OnBrowseSourceClick" />
-          <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Spacing="6">
-            <Button Content="Import Videos" Click="OnImportClick" />
-            <Button Content="Import IG Archive" Click="OnImportInstagramArchiveClick" />
-          </StackPanel>
-        </Grid>
+            <TextBlock Grid.Row="1" Text="Source videos:" VerticalAlignment="Center" />
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SourceFolderText}" Margin="8,0,8,0" />
+            <Button Grid.Row="1" Grid.Column="2" Content="Browse" Click="OnBrowseSourceClick" Margin="0,0,8,0" />
+            <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Spacing="6">
+              <Button Content="Import Videos" Click="OnImportClick" />
+              <Button Content="Import IG Archive" Click="OnImportInstagramArchiveClick" />
+            </StackPanel>
+          </Grid>
 
-        <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="430,560,*">
-          <StackPanel Grid.Column="0" Spacing="8">
+          <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="2*,2*,*">
+            <StackPanel Grid.Column="0" Spacing="8" MinWidth="360">
             <TextBlock Text="Videos" FontWeight="Bold" />
             <Grid ColumnDefinitions="*,Auto">
               <TextBox Grid.Column="0" Watermark="Search by video name" Text="{Binding SearchQuery}" />
               <Button Grid.Column="1" Margin="6,0,0,0" Content="X" Width="28" Height="28" Click="OnClearSearchClick" />
             </Grid>
 
-            <Border BorderThickness="1" BorderBrush="Gray" Height="700">
+            <Border BorderThickness="1" BorderBrush="Gray">
               <Grid RowDefinitions="Auto,*">
                 <Grid Grid.Row="0" ColumnDefinitions="2*,*,*,Auto" Margin="8,6">
                   <Button Content="Name" HorizontalAlignment="Stretch" Click="OnSortByNameClick" />
@@ -67,7 +67,7 @@
             </Border>
           </StackPanel>
 
-          <StackPanel Grid.Column="1" Spacing="8">
+            <StackPanel Grid.Column="1" Spacing="8" MinWidth="420">
             <TextBlock Text="Video Preview" FontWeight="Bold" />
             <Border Height="240" BorderThickness="1" BorderBrush="Gray" Padding="4">
               <vlc:VideoView x:Name="VideoPreviewView" />
@@ -88,7 +88,12 @@
               <Button Content="Refresh Description" Click="OnRefreshDescriptionClick" />
             </StackPanel>
 
-            <TextBox AcceptsReturn="True" Height="147" TextWrapping="Wrap" Text="{Binding DescriptionText}" />
+            <TextBox AcceptsReturn="True"
+                     Height="147"
+                     TextWrapping="WrapWithOverflow"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     Text="{Binding DescriptionText}" />
 
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="Tags:" VerticalAlignment="Center" />
@@ -101,27 +106,23 @@
             </StackPanel>
           </StackPanel>
 
-          <StackPanel Grid.Column="2" Spacing="8" Margin="12,0,0,0">
+            <StackPanel Grid.Column="2" Spacing="8" Margin="12,0,0,0" MinWidth="320">
             <TextBlock Text="Hashtag Rule Engine" FontWeight="Bold" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBlock Text="Compose for:" VerticalAlignment="Center" />
-              <ComboBox Width="110" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding HashtagComposeSubtype}" />
               <Button Content="Generate" Click="OnGenerateHashtagsClick" />
               <Button Content="Append" Click="OnAppendGeneratedHashtagsClick" />
             </StackPanel>
             <TextBox AcceptsReturn="True" IsReadOnly="True" Height="80" TextWrapping="Wrap" Text="{Binding GeneratedHashtagsText}" />
 
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="10">
-              <TextBlock Text="Core count:" />
-              <TextBox Grid.Column="1" Text="{Binding CoreCountText}" />
-              <TextBlock Grid.Row="1" Text="Niche count:" />
-              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NicheCountText}" />
-              <TextBlock Grid.Row="2" Text="Test count:" />
-              <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TestCountText}" />
-              <TextBlock Grid.Row="3" Text="Post max tags:" />
-              <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding PostMaxTagsText}" />
-              <TextBlock Grid.Row="4" Text="Reel max tags:" />
-              <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding ReelMaxTagsText}" />
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
+              <TextBlock Text="Core count:" Margin="0,0,0,6" />
+              <TextBox Grid.Column="1" Text="{Binding CoreCountText}" Margin="10,0,0,6" />
+              <TextBlock Grid.Row="1" Text="Niche count:" Margin="0,0,0,6" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NicheCountText}" Margin="10,0,0,6" />
+              <TextBlock Grid.Row="2" Text="Test count:" Margin="0,0,0,6" />
+              <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TestCountText}" Margin="10,0,0,6" />
+              <TextBlock Grid.Row="3" Text="Max tags:" Margin="0,0,0,6" />
+              <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding MaxTagsText}" Margin="10,0,0,6" />
             </Grid>
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="Cooldown days:" VerticalAlignment="Center" />
@@ -129,19 +130,41 @@
               <Button Content="Save Rules" Click="OnSaveHashtagRulesClick" />
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBox Width="160" Text="{Binding NewHashtag}" Watermark="#newtag" />
-              <ComboBox Width="110" ItemsSource="{Binding HashtagTiers}" SelectedItem="{Binding SelectedHashtagTier}" />
-              <Button Content="Add" Click="OnAddRuleHashtagClick" />
-              <Button Content="Remove Selected" Click="OnRemoveRuleHashtagsClick" />
-            </StackPanel>
-
-            <TextBlock Text="Core hashtags" FontWeight="SemiBold" />
-            <ListBox x:Name="CoreHashtagsList" Height="120" SelectionMode="Multiple" ItemsSource="{Binding CoreHashtags}" />
-            <TextBlock Text="Niche hashtags" FontWeight="SemiBold" />
-            <ListBox x:Name="NicheHashtagsList" Height="120" SelectionMode="Multiple" ItemsSource="{Binding NicheHashtags}" />
-            <TextBlock Text="Test hashtags" FontWeight="SemiBold" />
-            <ListBox x:Name="TestHashtagsList" Height="120" SelectionMode="Multiple" ItemsSource="{Binding TestHashtags}" />
+            <Grid ColumnDefinitions="*,*,*">
+              <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock Text="Core hashtags" FontWeight="SemiBold" />
+                <ListBox x:Name="CoreHashtagsList" Height="140" SelectionMode="Multiple" ItemsSource="{Binding CoreHashtags}">
+                  <ListBox.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Add hashtag" Click="OnAddCoreHashtagClick" />
+                      <MenuItem Header="Remove selected" Click="OnRemoveCoreHashtagsClick" />
+                    </ContextMenu>
+                  </ListBox.ContextMenu>
+                </ListBox>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="6" Margin="10,0,0,0">
+                <TextBlock Text="Niche hashtags" FontWeight="SemiBold" />
+                <ListBox x:Name="NicheHashtagsList" Height="140" SelectionMode="Multiple" ItemsSource="{Binding NicheHashtags}">
+                  <ListBox.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Add hashtag" Click="OnAddNicheHashtagClick" />
+                      <MenuItem Header="Remove selected" Click="OnRemoveNicheHashtagsClick" />
+                    </ContextMenu>
+                  </ListBox.ContextMenu>
+                </ListBox>
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="6" Margin="10,0,0,0">
+                <TextBlock Text="Test hashtags" FontWeight="SemiBold" />
+                <ListBox x:Name="TestHashtagsList" Height="140" SelectionMode="Multiple" ItemsSource="{Binding TestHashtags}">
+                  <ListBox.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Add hashtag" Click="OnAddTestHashtagClick" />
+                      <MenuItem Header="Remove selected" Click="OnRemoveTestHashtagsClick" />
+                    </ContextMenu>
+                  </ListBox.ContextMenu>
+                </ListBox>
+              </StackPanel>
+            </Grid>
 
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBlock Text="Performance:" VerticalAlignment="Center" />
@@ -151,72 +174,75 @@
               <TextBlock Text="Last post:" VerticalAlignment="Center" />
               <DatePicker SelectedDate="{Binding LastPostDate}" Width="150" />
             </StackPanel>
-          </StackPanel>
+            </StackPanel>
+          </Grid>
         </Grid>
-      </Grid>
+      </ScrollViewer>
     </TabItem>
 
     <TabItem Header="Schedule">
-      <Grid ColumnDefinitions="350,*,340" RowDefinitions="Auto,*" Margin="0,6,0,0">
-        <Border Grid.ColumnSpan="3" BorderThickness="1" BorderBrush="Gray" Padding="8" Margin="0,0,0,8">
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="First Post Time (HH:mm):" VerticalAlignment="Center" />
-            <TextBox Width="80" Text="{Binding FirstPostTime}" />
-            <TextBlock Text="First subtype:" VerticalAlignment="Center" />
-            <ComboBox Width="100" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding FirstPostSubtype}" />
-            <TextBlock Text="Repeat subtype:" VerticalAlignment="Center" />
-            <ComboBox Width="100" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding RepeatPostSubtype}" />
-            <TextBlock Text="Repeat every (days):" VerticalAlignment="Center" />
-            <TextBox Width="80" Text="{Binding RepeatEveryDaysText}" />
-            <TextBlock Text="Repeat post time (HH:mm):" VerticalAlignment="Center" />
-            <TextBox Width="80" Text="{Binding RepeatPostTime}" />
-            <Button Content="Save settings" Click="OnSaveScheduleSettingsClick" />
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+        <Grid ColumnDefinitions="1.2*,*,1.1*" RowDefinitions="Auto,*" Margin="0,6,0,0">
+          <Border Grid.ColumnSpan="3" BorderThickness="1" BorderBrush="Gray" Padding="8" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="First Post Time (HH:mm):" VerticalAlignment="Center" />
+              <TextBox Width="80" Text="{Binding FirstPostTime}" />
+              <TextBlock Text="First subtype:" VerticalAlignment="Center" />
+              <ComboBox Width="100" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding FirstPostSubtype}" />
+              <TextBlock Text="Repeat subtype:" VerticalAlignment="Center" />
+              <ComboBox Width="100" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding RepeatPostSubtype}" />
+              <TextBlock Text="Repeat every (days):" VerticalAlignment="Center" />
+              <TextBox Width="80" Text="{Binding RepeatEveryDaysText}" />
+              <TextBlock Text="Repeat post time (HH:mm):" VerticalAlignment="Center" />
+              <TextBox Width="80" Text="{Binding RepeatPostTime}" />
+              <Button Content="Save settings" Click="OnSaveScheduleSettingsClick" />
+            </StackPanel>
+          </Border>
+
+          <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
+            <TextBlock Text="Videos to schedule" FontWeight="Bold" />
+            <ListBox x:Name="ScheduleVideoList" SelectionMode="Multiple" ItemsSource="{Binding ReadyEntries}">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding VideoName}" />
+                    <TextBlock Text="{Binding PerformanceLevel, StringFormat=Quality: {0}}" FontSize="11" Opacity="0.75" />
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
           </StackPanel>
-        </Border>
 
-        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8">
-          <TextBlock Text="Videos to schedule" FontWeight="Bold" />
-          <ListBox x:Name="ScheduleVideoList" Height="650" SelectionMode="Multiple" ItemsSource="{Binding ReadyEntries}">
-            <ListBox.ItemTemplate>
-              <DataTemplate>
-                <StackPanel Spacing="2">
-                  <TextBlock Text="{Binding VideoName}" />
-                  <TextBlock Text="{Binding PerformanceLevel, StringFormat=Quality: {0}}" FontSize="11" Opacity="0.75" />
-                </StackPanel>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </StackPanel>
-
-        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8" Margin="10,0,10,0">
-          <TextBlock Text="Calendar day planning" FontWeight="Bold" />
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="Target day:" VerticalAlignment="Center" />
-            <DatePicker SelectedDate="{Binding SelectedScheduleDate}" Width="180" />
-            <Button Content="Schedule selected videos" Click="OnScheduleSelectedVideosClick" />
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8" Margin="10,0,10,0">
+            <TextBlock Text="Calendar day planning" FontWeight="Bold" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Target day:" VerticalAlignment="Center" />
+              <DatePicker SelectedDate="{Binding SelectedScheduleDate}" Width="180" />
+              <Button Content="Schedule selected videos" Click="OnScheduleSelectedVideosClick" />
+            </StackPanel>
+            <TextBlock Text="Tip: select multiple videos on the left, set repeat settings, then schedule them for the chosen day." TextWrapping="Wrap" />
+            <ListBox ItemsSource="{Binding ScheduledPosts}">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnDefinitions="170,100,100,*" Margin="4,2">
+                    <TextBlock Text="{Binding ScheduledAtDisplay}" />
+                    <TextBlock Grid.Column="1" Text="{Binding PostSubtype}" />
+                    <TextBlock Grid.Column="2" Text="{Binding RepeatEveryDaysDisplay}" />
+                    <TextBlock Grid.Column="3" Text="{Binding VideoName}" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
           </StackPanel>
-          <TextBlock Text="Tip: select multiple videos on the left, set repeat settings, then schedule them for the chosen day." TextWrapping="Wrap" />
-          <ListBox ItemsSource="{Binding ScheduledPosts}" Height="590">
-            <ListBox.ItemTemplate>
-              <DataTemplate>
-                <Grid ColumnDefinitions="170,100,100,*" Margin="4,2">
-                  <TextBlock Text="{Binding ScheduledAtDisplay}" />
-                  <TextBlock Grid.Column="1" Text="{Binding PostSubtype}" />
-                  <TextBlock Grid.Column="2" Text="{Binding RepeatEveryDaysDisplay}" />
-                  <TextBlock Grid.Column="3" Text="{Binding VideoName}" />
-                </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </StackPanel>
 
-        <StackPanel Grid.Row="1" Grid.Column="2" Spacing="8">
-          <TextBlock Text="Export" FontWeight="Bold" />
-          <Button Content="Export Publer CSV" Click="OnExportPublerCsvClick" />
-          <TextBlock TextWrapping="Wrap" Text="{Binding ScheduleStatus}" />
-          <TextBlock Text="CSV columns: Date, Text, Link(s), Media URL(s), Title, Label(s), Alt text(s), Comment(s), Pin board/album/category, Post subtype, CTA, Reminder" TextWrapping="Wrap" FontSize="11" />
-        </StackPanel>
-      </Grid>
+          <StackPanel Grid.Row="1" Grid.Column="2" Spacing="8">
+            <TextBlock Text="Export" FontWeight="Bold" />
+            <Button Content="Export Publer CSV" Click="OnExportPublerCsvClick" />
+            <TextBlock TextWrapping="Wrap" Text="{Binding ScheduleStatus}" />
+            <TextBlock Text="CSV columns: Date, Text, Link(s), Media URL(s), Title, Label(s), Alt text(s), Comment(s), Pin board/album/category, Post subtype, CTA, Reminder" TextWrapping="Wrap" FontSize="11" />
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
     </TabItem>
   </TabControl>
 </Window>

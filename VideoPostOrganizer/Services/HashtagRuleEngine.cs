@@ -4,13 +4,20 @@ namespace VideoPostOrganizer.Services;
 
 public class HashtagRuleEngine
 {
-    public List<string> BuildHashtags(HashtagRuleSet ruleSet, IReadOnlyCollection<VideoEntry> history, string subtype)
+    public List<string> BuildHashtags(
+        HashtagRuleSet ruleSet,
+        IReadOnlyCollection<VideoEntry> history,
+        IReadOnlyCollection<string> descriptionHashtags)
     {
         var now = DateTime.Now.Date;
-        var isReel = string.Equals(subtype, "reel", StringComparison.OrdinalIgnoreCase);
-        var maxTags = Math.Max(1, isReel ? ruleSet.ReelMaxTags : ruleSet.PostMaxTags);
+        var maxTags = Math.Max(1, ruleSet.MaxTags);
 
-        var selected = new List<string>();
+        var selected = descriptionHashtags
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(Normalize)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         AppendFromTier(selected, ruleSet.CoreHashtags, Math.Max(0, ruleSet.CoreCount), history, ruleSet.CooldownDays, now);
         AppendFromTier(selected, ruleSet.NicheHashtags, Math.Max(0, ruleSet.NicheCount), history, ruleSet.CooldownDays, now);
         AppendFromTier(selected, ruleSet.TestHashtags, Math.Max(0, ruleSet.TestCount), history, ruleSet.CooldownDays, now);
