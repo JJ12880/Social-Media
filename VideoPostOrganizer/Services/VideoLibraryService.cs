@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Security.Cryptography;
@@ -288,6 +289,63 @@ public class VideoLibraryService
 
         entry.VideoName = trimmedName;
         SaveMetadata(entry);
+    }
+
+    public void RenameVideoFileAndFolder(VideoEntry entry, string slugBaseName)
+    {
+        if (string.IsNullOrWhiteSpace(slugBaseName))
+        {
+            throw new ArgumentException("Filename cannot be empty.", nameof(slugBaseName));
+        }
+
+        var parentFolder = Directory.GetParent(entry.FolderPath)?.FullName
+            ?? throw new InvalidOperationException("Unable to resolve storage folder.");
+
+        var targetFolder = GetUniqueFolderPath(Path.Combine(parentFolder, slugBaseName));
+        if (!string.Equals(targetFolder, entry.FolderPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Directory.Move(entry.FolderPath, targetFolder);
+            entry.FolderPath = targetFolder;
+        }
+
+        var extension = Path.GetExtension(entry.VideoFileName);
+        var baseFileName = slugBaseName;
+        var currentVideoPath = ResolveVideoPath(entry.FolderPath, entry.VideoFileName);
+        var targetFilePath = EnsureUniqueFilePath(entry.FolderPath, baseFileName, extension, currentVideoPath);
+
+        if (!string.Equals(currentVideoPath, targetFilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            File.Move(currentVideoPath, targetFilePath);
+        }
+
+        entry.VideoFileName = Path.GetFileName(targetFilePath);
+        entry.VideoPath = targetFilePath;
+        entry.VideoName = slugBaseName;
+        SaveMetadata(entry);
+    }
+
+    public static string SlugifyTitle(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return string.Empty;
+        }
+
+        var lower = input.Trim().ToLowerInvariant();
+        lower = Regex.Replace(lower, @"#[\p{L}\p{N}_]+", " ");
+        lower = Regex.Replace(lower, @"[^\p{L}\p{N}\s-]", " ");
+        lower = Regex.Replace(lower, @"\s+", " ").Trim();
+
+        var words = lower.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (words.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var filtered = words.Where(x => !Stopwords.Contains(x)).ToList();
+        var finalWords = filtered.Count >= 2 ? filtered : words;
+
+        return string.Join('-', finalWords);
     }
 
     public void SaveMetadata(VideoEntry entry)
@@ -658,6 +716,34 @@ public class VideoLibraryService
             "high" => "High",
             _ => "Normal"
         };
+    }
+
+    private static readonly HashSet<string> Stopwords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "a", "an", "the", "of", "to", "in", "on", "for", "and", "or", "with", "from",
+        "at", "by", "as", "is", "are", "was", "were", "be", "been", "being", "this",
+        "that", "these", "those", "it", "its", "into", "over", "under", "up", "down",
+        "out", "about", "after", "before", "between", "through", "during", "without"
+    };
+
+    private static string EnsureUniqueFilePath(string folderPath, string baseName, string extension, string currentPath)
+    {
+        var candidate = Path.Combine(folderPath, $"{baseName}{extension}");
+        if (!File.Exists(candidate) || string.Equals(candidate, currentPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return candidate;
+        }
+
+        for (var i = 2; i < 1000; i++)
+        {
+            var attempt = Path.Combine(folderPath, $"{baseName}-{i}{extension}");
+            if (!File.Exists(attempt))
+            {
+                return attempt;
+            }
+        }
+
+        throw new IOException("Unable to generate a unique filename.");
     }
     private static string ResolveVideoPath(string directory, string videoFileName)
     {

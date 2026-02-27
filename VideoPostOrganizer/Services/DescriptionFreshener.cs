@@ -83,6 +83,43 @@ Rules:
         return rewritten;
     }
 
+    public async Task<string> GenerateTitleAsync(string descriptionText)
+    {
+        if (string.IsNullOrWhiteSpace(descriptionText))
+        {
+            return string.Empty;
+        }
+
+        if (!IsConfigured)
+        {
+            throw new InvalidOperationException("OpenAI API key is not configured. Set OPENAI_API_KEY or appsettings.Local.json.");
+        }
+
+        var cleaned = PrepareTitleInput(descriptionText);
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            return string.Empty;
+        }
+
+        var client = new OpenAIClient(_settings.ApiKey);
+        var chatClient = client.GetChatClient(_settings.Model);
+
+        var systemPrompt =
+            "Write a short descriptive title for a social media video. " +
+            "Return 2-6 words. No hashtags, emojis, punctuation, or quotes. " +
+            "Lowercase only. Return only the title text.";
+
+        var userPrompt = $"Description: {cleaned}\nTitle:";
+
+        var completion = await chatClient.CompleteChatAsync(new List<ChatMessage>
+        {
+            new SystemChatMessage(systemPrompt),
+            new UserChatMessage(userPrompt)
+        });
+
+        return completion.Value.Content.FirstOrDefault()?.Text?.Trim() ?? string.Empty;
+    }
+
     public static OpenAiSettings LoadSettings(string appBasePath)
     {
         var settings = new OpenAiSettings();
@@ -146,6 +183,18 @@ Rules:
 
         var withoutTags = HashtagRegex.Replace(input, "$1");
         return Regex.Replace(withoutTags, @"[ \t]{2,}", " ").Trim();
+    }
+
+    private static string PrepareTitleInput(string input)
+    {
+        var trimmed = input.Trim();
+        trimmed = UrlRegex.Replace(trimmed, " ");
+        trimmed = MentionRegex.Replace(trimmed, " ");
+        trimmed = HashtagRegex.Replace(trimmed, " ");
+        trimmed = Regex.Replace(trimmed, @"\s+", " ").Trim();
+
+        const int maxLength = 400;
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 
     private static void ValidateOutput(

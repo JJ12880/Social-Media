@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -57,6 +58,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private VideoView? _videoView;
     private Media? _currentMedia;
     private bool _isPreviewHostReady;
+    private int _previewRequestId;
     private DateTimeOffset? _selectedScheduleDate = DateTimeOffset.Now.Date;
     private string _firstPostTime = "09:00";
     private string _repeatPostTime = "13:00";
@@ -108,7 +110,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             if (SelectedEntry is not null)
             {
-                PrepareEmbeddedPreview(SelectedEntry.VideoPath);
+                _ = PrepareEmbeddedPreviewAsync(SelectedEntry.VideoPath);
             }
         };
         Closed += OnWindowClosed;
@@ -215,7 +217,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        PrepareEmbeddedPreview(entry.VideoPath);
+        _ = PrepareEmbeddedPreviewAsync(entry.VideoPath);
     }
 
     private void LoadSelectedDescription()
@@ -339,6 +341,75 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _service.DeleteVideo(SelectedEntry);
         LoadStorageInternal();
+    }
+
+    private async void OnRenameAllFilesClick(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        {
+            await ShowMessageAsync("Load storage first.");
+            return;
+        }
+
+        if (!await ConfirmAsync("Rename all imported video files using AI titles? This will update folder and file names."))
+        {
+            return;
+        }
+
+        if (!_descriptionFreshener.IsConfigured)
+        {
+            await ShowMessageAsync("OpenAI API key is missing. Set OPENAI_API_KEY or appsettings.Local.json.");
+            return;
+        }
+
+        var titleCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var renamed = 0;
+        foreach (var entry in _allEntries.OrderBy(x => x.VideoName))
+        {
+            var descriptionFile = entry.DescriptionFiles.OrderBy(x => x).FirstOrDefault();
+            var description = string.IsNullOrWhiteSpace(descriptionFile)
+                ? entry.VideoName
+                : _service.LoadDescription(entry, descriptionFile) ?? string.Empty;
+
+            var cacheKey = description.Trim();
+            if (!titleCache.TryGetValue(cacheKey, out var title))
+            {
+                try
+                {
+                    title = await _descriptionFreshener.GenerateTitleAsync(description);
+                }
+                catch (Exception ex)
+                {
+                    PreviewStatus = $"AI title failed for {entry.VideoName}: {ex.Message}";
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    title = entry.VideoName;
+                }
+
+                titleCache[cacheKey] = title;
+            }
+
+            var slug = VideoLibraryService.SlugifyTitle(title);
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                slug = VideoLibraryService.SlugifyTitle(entry.VideoName);
+            }
+
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                slug = $"video-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            }
+
+            _service.RenameVideoFileAndFolder(entry, slug);
+            renamed++;
+            PreviewStatus = $"Renamed {renamed}/{_allEntries.Count} files...";
+        }
+
+        LoadStorageInternal();
+        PreviewStatus = $"Renamed {renamed} files.";
     }
 
     private async void OnAddDescriptionClick(object? sender, RoutedEventArgs e)
@@ -648,31 +719,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PreviewStatus = "Preview unloaded.";
     }
 
-    private void PrepareEmbeddedPreview(string videoPath)
+    private async Task PrepareEmbeddedPreviewAsync(string videoPath)
     {
-        if (!EnsurePreviewHost())
+        var requestId = Interlocked.Increment(ref _previewRequestId);
+        if (!TryPrepareMedia(videoPath))
         {
             return;
         }
 
-        var selectedUri = new Uri(videoPath).AbsoluteUri;
-        var loadedUri = _currentMedia?.Mrl;
-        if (!string.Equals(loadedUri, selectedUri, StringComparison.OrdinalIgnoreCase))
-        {
-            _currentMedia?.Dispose();
-            _currentMedia = new Media(_libVlc, new Uri(videoPath));
-        }
-
-        if (_currentMedia == null)
+        var media = _currentMedia;
+        if (media == null)
         {
             PreviewStatus = "Unable to prepare preview.";
             return;
         }
 
-        _mediaPlayer.Media = _currentMedia;
+        _mediaPlayer.Play(media);
+        await Task.Delay(50);
+        if (requestId != _previewRequestId)
+        {
+            return;
+        }
 
-        // Render first frame in preview without continuing playback.
-        _mediaPlayer.Play(_currentMedia);
         _mediaPlayer.SetPause(true);
         PlayPauseButtonText = "Play";
         PreviewStatus = $"Ready in preview: {Path.GetFileName(videoPath)}";
@@ -778,7 +846,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void StartEmbeddedPreview(string videoPath)
     {
-        PrepareEmbeddedPreview(videoPath);
+        if (!TryPrepareMedia(videoPath))
+        {
+            return;
+        }
 
         if (_currentMedia == null)
         {
@@ -789,6 +860,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _mediaPlayer.Play(_currentMedia);
         PlayPauseButtonText = "Pause";
         PreviewStatus = $"Playing in preview: {Path.GetFileName(videoPath)}";
+    }
+
+    private bool TryPrepareMedia(string videoPath)
+    {
+        if (!EnsurePreviewHost())
+        {
+            return false;
+        }
+
+        var selectedUri = new Uri(videoPath).AbsoluteUri;
+        var loadedUri = _currentMedia?.Mrl;
+        if (!string.Equals(loadedUri, selectedUri, StringComparison.OrdinalIgnoreCase))
+        {
+            _currentMedia?.Dispose();
+            _currentMedia = new Media(_libVlc, new Uri(videoPath));
+        }
+
+        if (_currentMedia == null)
+        {
+            PreviewStatus = "Unable to prepare preview.";
+            return false;
+        }
+
+        _mediaPlayer.Media = _currentMedia;
+        return true;
     }
 
     private bool EnsurePreviewHost()

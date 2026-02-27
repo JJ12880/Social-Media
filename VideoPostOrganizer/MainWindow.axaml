@@ -10,10 +10,11 @@
     <TabItem Header="Library">
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
         <Grid RowDefinitions="Auto,*" ColumnDefinitions="*">
-          <Grid Row="0" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+          <Grid Row="0" ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
             <TextBlock Text="Storage folders:" VerticalAlignment="Center" />
             <TextBox Grid.Column="1" Text="{Binding StorageFoldersText}" Margin="8,0,8,0" />
             <Button Grid.Column="2" Content="Load Storage" Click="OnLoadStorageClick" />
+            <Button Grid.Column="3" Content="Rename All" Click="OnRenameAllFilesClick" Margin="8,0,0,0" />
 
             <TextBlock Grid.Row="1" Text="Source videos:" VerticalAlignment="Center" />
             <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SourceFolderText}" Margin="8,0,8,0" />
@@ -25,47 +26,47 @@
           </Grid>
 
           <Grid Grid.Row="1" Margin="0,10,0,0" ColumnDefinitions="2*,2*,*">
-            <StackPanel Grid.Column="0" Spacing="8" MinWidth="360">
-            <TextBlock Text="Videos" FontWeight="Bold" />
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBox Grid.Column="0" Watermark="Search by video name" Text="{Binding SearchQuery}" />
-              <Button Grid.Column="1" Margin="6,0,0,0" Content="X" Width="28" Height="28" Click="OnClearSearchClick" />
-            </Grid>
-
-            <Border BorderThickness="1" BorderBrush="Gray">
-              <Grid RowDefinitions="Auto,*">
-                <Grid Grid.Row="0" ColumnDefinitions="2*,*,*,Auto" Margin="8,6">
-                  <Button Content="Name" HorizontalAlignment="Stretch" Click="OnSortByNameClick" />
-                  <Button Grid.Column="1" Content="Performance" HorizontalAlignment="Stretch" Click="OnSortByPerformanceClick" />
-                  <Button Grid.Column="2" Content="Created" HorizontalAlignment="Stretch" Click="OnSortByCreatedClick" />
-                  <Button Grid.Column="3" Content="Ready" HorizontalAlignment="Stretch" Click="OnSortByReadyClick" />
-                </Grid>
-
-                <ListBox Grid.Row="1"
-                         ItemsSource="{Binding Entries}"
-                         SelectedItem="{Binding SelectedEntry}">
-                  <ListBox.ItemTemplate>
-                    <DataTemplate>
-                      <Grid ColumnDefinitions="2*,*,*,Auto" Margin="8,4">
-                        <TextBlock Text="{Binding VideoName}" />
-                        <TextBlock Grid.Column="1" Text="{Binding PerformanceLevel}" />
-                        <TextBlock Grid.Column="2" Text="{Binding FileCreatedDisplay}" />
-                        <TextBlock Grid.Column="3" Text="{Binding ReadyForUse}" />
-                      </Grid>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-
-                  <ListBox.ContextMenu>
-                    <ContextMenu>
-                      <MenuItem Header="Rename selected" Click="OnRenameClick" />
-                      <MenuItem Header="Delete selected" Click="OnDeleteClick" />
-                      <MenuItem Header="Open in folder" Click="OnOpenInFolderClick" />
-                    </ContextMenu>
-                  </ListBox.ContextMenu>
-                </ListBox>
+            <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*" MinWidth="360">
+              <TextBlock Text="Videos" FontWeight="Bold" />
+              <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                <TextBox Grid.Column="0" Watermark="Search by video name" Text="{Binding SearchQuery}" />
+                <Button Grid.Column="1" Margin="6,0,0,0" Content="X" Width="28" Height="28" Click="OnClearSearchClick" />
               </Grid>
-            </Border>
-          </StackPanel>
+
+              <Border Grid.Row="2" BorderThickness="1" BorderBrush="Gray" Margin="0,8,0,0">
+                <Grid RowDefinitions="Auto,*">
+                  <Grid Grid.Row="0" ColumnDefinitions="2*,*,*,Auto" Margin="8,6">
+                    <Button Content="Name" HorizontalAlignment="Stretch" Click="OnSortByNameClick" />
+                    <Button Grid.Column="1" Content="Performance" HorizontalAlignment="Stretch" Click="OnSortByPerformanceClick" />
+                    <Button Grid.Column="2" Content="Created" HorizontalAlignment="Stretch" Click="OnSortByCreatedClick" />
+                    <Button Grid.Column="3" Content="Ready" HorizontalAlignment="Stretch" Click="OnSortByReadyClick" />
+                  </Grid>
+
+                  <ListBox Grid.Row="1"
+                           ItemsSource="{Binding Entries}"
+                           SelectedItem="{Binding SelectedEntry}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Grid ColumnDefinitions="2*,*,*,Auto" Margin="8,4">
+                          <TextBlock Text="{Binding VideoName}" />
+                          <TextBlock Grid.Column="1" Text="{Binding PerformanceLevel}" />
+                          <TextBlock Grid.Column="2" Text="{Binding FileCreatedDisplay}" />
+                          <TextBlock Grid.Column="3" Text="{Binding ReadyForUse}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+
+                    <ListBox.ContextMenu>
+                      <ContextMenu>
+                        <MenuItem Header="Rename selected" Click="OnRenameClick" />
+                        <MenuItem Header="Delete selected" Click="OnDeleteClick" />
+                        <MenuItem Header="Open in folder" Click="OnOpenInFolderClick" />
+                      </ContextMenu>
+                    </ListBox.ContextMenu>
+                  </ListBox>
+                </Grid>
+              </Border>
+            </Grid>
 
             <StackPanel Grid.Column="1" Spacing="8" MinWidth="420">
             <TextBlock Text="Video Preview" FontWeight="Bold" />
@@ -93,7 +94,8 @@
                      TextWrapping="WrapWithOverflow"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     Text="{Binding DescriptionText}" />
+                     Text="{Binding DescriptionText}" 
+					 MaxWidth ="600"/>
 
             <StackPanel Orientation="Horizontal" Spacing="8">
               <TextBlock Text="Tags:" VerticalAlignment="Center" />
