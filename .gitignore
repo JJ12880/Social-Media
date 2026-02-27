@@ -13,3 +13,5 @@ VideoPostOrganizer.sln
 VideoPostOrganizer/appsettings.Local.json
 
 VideoPostOrganizer/appsettings.json
+
+.dotnet_cli/.dotnet/
