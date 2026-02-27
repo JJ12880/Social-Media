@@ -22,6 +22,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly VideoLibraryService _service = new();
     private readonly DescriptionFreshener _descriptionFreshener;
+    private readonly HashtagRuleEngine _hashtagRuleEngine = new();
+    private HashtagRuleSet _hashtagRuleSet = new();
 
     private string _storageFoldersText = string.Empty;
     private string _sourceFolderText = string.Empty;
@@ -34,6 +36,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _tagsText = string.Empty;
     private string _newHashtag = string.Empty;
     private string _searchQuery = string.Empty;
+    private string _generatedHashtagsText = string.Empty;
+    private string _hashtagComposeSubtype = "post";
+    private string _selectedHashtagTier = "Niche";
     private bool _readyForUse;
     private string _saveButtonText = "Save Selected Video";
     private string _playPauseButtonText = "Play";
@@ -55,13 +60,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _repeatPostSubtype = "reel";
     private string _repeatEveryDaysText = "7";
     private string _scheduleStatus = "Load storage to start scheduling.";
+    private string _coreCountText = "3";
+    private string _nicheCountText = "5";
+    private string _testCountText = "2";
+    private string _postMaxTagsText = "8";
+    private string _reelMaxTagsText = "12";
+    private string _cooldownDaysText = "7";
 
     public ObservableCollection<VideoEntry> Entries { get; } = new();
     public ObservableCollection<VideoEntry> ReadyEntries { get; } = new();
     public ObservableCollection<string> DescriptionFiles { get; } = new();
-    public ObservableCollection<string> CommonHashtags { get; } = new();
+    public ObservableCollection<string> CoreHashtags { get; } = new();
+    public ObservableCollection<string> NicheHashtags { get; } = new();
+    public ObservableCollection<string> TestHashtags { get; } = new();
     public List<string> PerformanceLevels { get; } = new() { "Low", "Normal", "High" };
     public List<string> PostSubtypes { get; } = new() { "post", "reel" };
+    public List<string> HashtagTiers { get; } = new() { "Core", "Niche", "Test" };
     public ObservableCollection<ScheduledPost> ScheduledPosts { get; } = new();
 
     private event PropertyChangedEventHandler? ViewModelPropertyChanged;
@@ -134,6 +148,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public DateTimeOffset? LastPostDate { get => _lastPostDate; set => SetField(ref _lastPostDate, value); }
     public string TagsText { get => _tagsText; set => SetField(ref _tagsText, value); }
     public string NewHashtag { get => _newHashtag; set => SetField(ref _newHashtag, value); }
+    public string GeneratedHashtagsText { get => _generatedHashtagsText; set => SetField(ref _generatedHashtagsText, value); }
+    public string HashtagComposeSubtype { get => _hashtagComposeSubtype; set => SetField(ref _hashtagComposeSubtype, value); }
+    public string SelectedHashtagTier { get => _selectedHashtagTier; set => SetField(ref _selectedHashtagTier, value); }
     public bool ReadyForUse { get => _readyForUse; set => SetField(ref _readyForUse, value); }
     public string SaveButtonText { get => _saveButtonText; set => SetField(ref _saveButtonText, value); }
     public string PlayPauseButtonText { get => _playPauseButtonText; set => SetField(ref _playPauseButtonText, value); }
@@ -159,6 +176,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string RepeatPostSubtype { get => _repeatPostSubtype; set => SetField(ref _repeatPostSubtype, value); }
     public string RepeatEveryDaysText { get => _repeatEveryDaysText; set => SetField(ref _repeatEveryDaysText, value); }
     public string ScheduleStatus { get => _scheduleStatus; set => SetField(ref _scheduleStatus, value); }
+    public string CoreCountText { get => _coreCountText; set => SetField(ref _coreCountText, value); }
+    public string NicheCountText { get => _nicheCountText; set => SetField(ref _nicheCountText, value); }
+    public string TestCountText { get => _testCountText; set => SetField(ref _testCountText, value); }
+    public string PostMaxTagsText { get => _postMaxTagsText; set => SetField(ref _postMaxTagsText, value); }
+    public string ReelMaxTagsText { get => _reelMaxTagsText; set => SetField(ref _reelMaxTagsText, value); }
+    public string CooldownDaysText { get => _cooldownDaysText; set => SetField(ref _cooldownDaysText, value); }
 
     private string? PrimaryStorageFolder => ParseStorageFolders().FirstOrDefault();
 
@@ -242,14 +265,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             .ToList();
         ApplyVideoFilter();
 
-        CommonHashtags.Clear();
+        CoreHashtags.Clear();
+        NicheHashtags.Clear();
+        TestHashtags.Clear();
         ScheduledPosts.Clear();
         if (!string.IsNullOrWhiteSpace(PrimaryStorageFolder))
         {
-            foreach (var tag in _service.LoadCommonHashtags(PrimaryStorageFolder))
+            _hashtagRuleSet = _service.LoadHashtagRules(PrimaryStorageFolder);
+            foreach (var tag in _hashtagRuleSet.CoreHashtags)
             {
-                CommonHashtags.Add(tag);
+                CoreHashtags.Add(tag);
             }
+
+            foreach (var tag in _hashtagRuleSet.NicheHashtags)
+            {
+                NicheHashtags.Add(tag);
+            }
+
+            foreach (var tag in _hashtagRuleSet.TestHashtags)
+            {
+                TestHashtags.Add(tag);
+            }
+
+            CoreCountText = _hashtagRuleSet.CoreCount.ToString();
+            NicheCountText = _hashtagRuleSet.NicheCount.ToString();
+            TestCountText = _hashtagRuleSet.TestCount.ToString();
+            PostMaxTagsText = _hashtagRuleSet.PostMaxTags.ToString();
+            ReelMaxTagsText = _hashtagRuleSet.ReelMaxTags.ToString();
+            CooldownDaysText = _hashtagRuleSet.CooldownDays.ToString();
 
             foreach (var post in _service.LoadSchedule(PrimaryStorageFolder))
             {
@@ -460,48 +503,63 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void OnAddHashtagClick(object? sender, RoutedEventArgs e)
+    private async void OnAddRuleHashtagClick(object? sender, RoutedEventArgs e)
     {
-        var storage = PrimaryStorageFolder;
-        if (string.IsNullOrWhiteSpace(storage))
+        if (string.IsNullOrWhiteSpace(NewHashtag))
         {
             return;
         }
 
-        var tag = NormalizeHashtag(NewHashtag);
-        if (string.IsNullOrWhiteSpace(tag))
+        var targetCollection = GetTierCollection(SelectedHashtagTier);
+        var normalized = HashtagRuleEngine.Normalize(NewHashtag);
+        if (string.IsNullOrWhiteSpace(normalized))
         {
             return;
         }
 
-        if (!CommonHashtags.Contains(tag, StringComparer.OrdinalIgnoreCase))
+        if (!targetCollection.Contains(normalized, StringComparer.OrdinalIgnoreCase))
         {
-            CommonHashtags.Add(tag);
-            _service.SaveCommonHashtags(storage, CommonHashtags.ToList());
+            targetCollection.Add(normalized);
+            await SaveHashtagRulesInternalAsync();
             NewHashtag = string.Empty;
         }
     }
 
-    private void OnRemoveHashtagClick(object? sender, RoutedEventArgs e)
+    private async void OnRemoveRuleHashtagsClick(object? sender, RoutedEventArgs e)
     {
-        var list = this.FindControl<ListBox>("CommonHashtagsList");
-        var selected = list?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
-        foreach (var tag in selected)
+        var coreSelected = this.FindControl<ListBox>("CoreHashtagsList")?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
+        var nicheSelected = this.FindControl<ListBox>("NicheHashtagsList")?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
+        var testSelected = this.FindControl<ListBox>("TestHashtagsList")?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
+
+        foreach (var tag in coreSelected)
         {
-            CommonHashtags.Remove(tag);
+            CoreHashtags.Remove(tag);
         }
 
-        if (!string.IsNullOrWhiteSpace(PrimaryStorageFolder))
+        foreach (var tag in nicheSelected)
         {
-            _service.SaveCommonHashtags(PrimaryStorageFolder, CommonHashtags.ToList());
+            NicheHashtags.Remove(tag);
         }
+
+        foreach (var tag in testSelected)
+        {
+            TestHashtags.Remove(tag);
+        }
+
+        await SaveHashtagRulesInternalAsync();
     }
 
-    private void OnAppendHashtagClick(object? sender, RoutedEventArgs e)
+    private async void OnGenerateHashtagsClick(object? sender, RoutedEventArgs e)
     {
-        var list = this.FindControl<ListBox>("CommonHashtagsList");
-        var selected = list?.SelectedItems?.OfType<string>().ToList() ?? new List<string>();
-        if (selected.Count == 0)
+        SyncHashtagRulesFromUi();
+        var result = _hashtagRuleEngine.BuildHashtags(_hashtagRuleSet, _allEntries, HashtagComposeSubtype);
+        GeneratedHashtagsText = string.Join(Environment.NewLine, result);
+        await SaveHashtagRulesInternalAsync();
+    }
+
+    private void OnAppendGeneratedHashtagsClick(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(GeneratedHashtagsText))
         {
             return;
         }
@@ -511,7 +569,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             DescriptionText += Environment.NewLine;
         }
 
-        DescriptionText += string.Join(Environment.NewLine, selected);
+        DescriptionText += GeneratedHashtagsText;
+    }
+
+    private async void OnSaveHashtagRulesClick(object? sender, RoutedEventArgs e)
+    {
+        await SaveHashtagRulesInternalAsync();
     }
 
 
@@ -642,50 +705,50 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
 
-    private void OnMoveHashtagUpClick(object? sender, RoutedEventArgs e)
+    private ObservableCollection<string> GetTierCollection(string? tier)
     {
-        if (this.FindControl<ListBox>("CommonHashtagsList")?.SelectedItem is not string selectedTag)
+        return tier?.Trim().ToLowerInvariant() switch
         {
-            return;
-        }
-
-        var currentIndex = CommonHashtags.IndexOf(selectedTag);
-        if (currentIndex <= 0)
-        {
-            return;
-        }
-
-        CommonHashtags.Move(currentIndex, currentIndex - 1);
-        PersistCommonHashtagsOrder();
-        this.FindControl<ListBox>("CommonHashtagsList")!.SelectedItem = selectedTag;
+            "core" => CoreHashtags,
+            "test" => TestHashtags,
+            _ => NicheHashtags
+        };
     }
 
-    private void OnMoveHashtagDownClick(object? sender, RoutedEventArgs e)
-    {
-        if (this.FindControl<ListBox>("CommonHashtagsList")?.SelectedItem is not string selectedTag)
-        {
-            return;
-        }
-
-        var currentIndex = CommonHashtags.IndexOf(selectedTag);
-        if (currentIndex < 0 || currentIndex >= CommonHashtags.Count - 1)
-        {
-            return;
-        }
-
-        CommonHashtags.Move(currentIndex, currentIndex + 1);
-        PersistCommonHashtagsOrder();
-        this.FindControl<ListBox>("CommonHashtagsList")!.SelectedItem = selectedTag;
-    }
-
-    private void PersistCommonHashtagsOrder()
+    private async Task SaveHashtagRulesInternalAsync()
     {
         if (string.IsNullOrWhiteSpace(PrimaryStorageFolder))
         {
+            await ShowMessageAsync("Load storage first.");
             return;
         }
 
-        _service.SaveCommonHashtags(PrimaryStorageFolder, CommonHashtags.ToList());
+        SyncHashtagRulesFromUi();
+        _service.SaveHashtagRules(PrimaryStorageFolder, _hashtagRuleSet);
+        PreviewStatus = "Hashtag rules saved.";
+    }
+
+    private void SyncHashtagRulesFromUi()
+    {
+        _hashtagRuleSet.CoreHashtags = CoreHashtags.ToList();
+        _hashtagRuleSet.NicheHashtags = NicheHashtags.ToList();
+        _hashtagRuleSet.TestHashtags = TestHashtags.ToList();
+        _hashtagRuleSet.CoreCount = ParseNonNegative(CoreCountText, 3);
+        _hashtagRuleSet.NicheCount = ParseNonNegative(NicheCountText, 5);
+        _hashtagRuleSet.TestCount = ParseNonNegative(TestCountText, 2);
+        _hashtagRuleSet.PostMaxTags = ParsePositive(PostMaxTagsText, 8);
+        _hashtagRuleSet.ReelMaxTags = ParsePositive(ReelMaxTagsText, 12);
+        _hashtagRuleSet.CooldownDays = ParseNonNegative(CooldownDaysText, 7);
+    }
+
+    private static int ParsePositive(string value, int fallback)
+    {
+        return int.TryParse(value, out var parsed) ? Math.Max(1, parsed) : fallback;
+    }
+
+    private static int ParseNonNegative(string value, int fallback)
+    {
+        return int.TryParse(value, out var parsed) ? Math.Max(0, parsed) : fallback;
     }
 
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
@@ -935,17 +998,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _mediaPlayer.Dispose();
         _libVlc.Dispose();
-    }
-
-    private static string NormalizeHashtag(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = value.Trim();
-        return trimmed.StartsWith('#') ? trimmed : $"#{trimmed}";
     }
 
     private List<string> LoadStyleSamples()

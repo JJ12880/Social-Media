@@ -102,20 +102,46 @@
           </StackPanel>
 
           <StackPanel Grid.Column="2" Spacing="8" Margin="12,0,0,0">
-            <TextBlock Text="Common hashtags" FontWeight="Bold" />
+            <TextBlock Text="Hashtag Rule Engine" FontWeight="Bold" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBox Width="180" Text="{Binding NewHashtag}" />
-              <Button Content="Add Hashtag" Click="OnAddHashtagClick" />
+              <TextBlock Text="Compose for:" VerticalAlignment="Center" />
+              <ComboBox Width="110" ItemsSource="{Binding PostSubtypes}" SelectedItem="{Binding HashtagComposeSubtype}" />
+              <Button Content="Generate" Click="OnGenerateHashtagsClick" />
+              <Button Content="Append" Click="OnAppendGeneratedHashtagsClick" />
             </StackPanel>
+            <TextBox AcceptsReturn="True" IsReadOnly="True" Height="80" TextWrapping="Wrap" Text="{Binding GeneratedHashtagsText}" />
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="10">
+              <TextBlock Text="Core count:" />
+              <TextBox Grid.Column="1" Text="{Binding CoreCountText}" />
+              <TextBlock Grid.Row="1" Text="Niche count:" />
+              <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NicheCountText}" />
+              <TextBlock Grid.Row="2" Text="Test count:" />
+              <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TestCountText}" />
+              <TextBlock Grid.Row="3" Text="Post max tags:" />
+              <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding PostMaxTagsText}" />
+              <TextBlock Grid.Row="4" Text="Reel max tags:" />
+              <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding ReelMaxTagsText}" />
+            </Grid>
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <Button Content="Remove Selected" Click="OnRemoveHashtagClick" />
-              <Button Content="Append Selected To Description" Click="OnAppendHashtagClick" />
+              <TextBlock Text="Cooldown days:" VerticalAlignment="Center" />
+              <TextBox Width="80" Text="{Binding CooldownDaysText}" />
+              <Button Content="Save Rules" Click="OnSaveHashtagRulesClick" />
             </StackPanel>
-            <ListBox x:Name="CommonHashtagsList" Height="520" SelectionMode="Multiple" ItemsSource="{Binding CommonHashtags}" />
+
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <Button Content="Move Up" Click="OnMoveHashtagUpClick" />
-              <Button Content="Move Down" Click="OnMoveHashtagDownClick" />
+              <TextBox Width="160" Text="{Binding NewHashtag}" Watermark="#newtag" />
+              <ComboBox Width="110" ItemsSource="{Binding HashtagTiers}" SelectedItem="{Binding SelectedHashtagTier}" />
+              <Button Content="Add" Click="OnAddRuleHashtagClick" />
+              <Button Content="Remove Selected" Click="OnRemoveRuleHashtagsClick" />
             </StackPanel>
+
+            <TextBlock Text="Core hashtags" FontWeight="SemiBold" />
+            <ListBox x:Name="CoreHashtagsList" Height="120" SelectionMode="Multiple" ItemsSource="{Binding CoreHashtags}" />
+            <TextBlock Text="Niche hashtags" FontWeight="SemiBold" />
+            <ListBox x:Name="NicheHashtagsList" Height="120" SelectionMode="Multiple" ItemsSource="{Binding NicheHashtags}" />
+            <TextBlock Text="Test hashtags" FontWeight="SemiBold" />
+            <ListBox x:Name="TestHashtagsList" Height="120" SelectionMode="Multiple" ItemsSource="{Binding TestHashtags}" />
 
             <StackPanel Orientation="Horizontal" Spacing="10">
               <TextBlock Text="Performance:" VerticalAlignment="Center" />

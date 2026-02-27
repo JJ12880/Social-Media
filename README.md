@@ -42,3 +42,14 @@ The **Refresh Description** button uses the official OpenAI .NET SDK to rewrite 
 2. Put your API key in `OpenAI:ApiKey` (or set `OPENAI_API_KEY` environment variable).
 3. Keep `appsettings.Local.json` out of source control (already ignored).
 
+
+## Rule-based hashtag engine
+
+The Library tab now includes a hashtag rule engine with tunable controls:
+- separate Core / Niche / Test hashtag pools,
+- per-tier selection counts,
+- max hashtag count by post type (post vs reel),
+- cooldown days to avoid recently used tags.
+
+Rules are saved to `hashtag-rules.json` in the selected storage folder. Legacy `common-hashtags.json` values are migrated into the Niche pool on first load.
+

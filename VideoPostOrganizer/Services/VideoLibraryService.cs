@@ -10,6 +10,7 @@ public class VideoLibraryService
 {
     private const string MetadataFileName = "metadata.json";
     private const string CommonHashtagsFileName = "common-hashtags.json";
+    private const string HashtagRulesFileName = "hashtag-rules.json";
     private const string ScheduleFileName = "schedule.json";
     private const string ScheduleSettingsFileName = "schedule-settings.json";
     private static readonly HashSet<string> SupportedVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -297,44 +298,126 @@ public class VideoLibraryService
         File.WriteAllText(metadataPath, json);
     }
 
-    public List<string> LoadCommonHashtags(string storageFolder)
+    public HashtagRuleSet LoadHashtagRules(string storageFolder)
     {
-        var hashtagsPath = Path.Combine(storageFolder, CommonHashtagsFileName);
-        if (!File.Exists(hashtagsPath))
+        var rulesPath = Path.Combine(storageFolder, HashtagRulesFileName);
+        if (File.Exists(rulesPath))
         {
-            return new List<string>();
+            try
+            {
+                var json = File.ReadAllText(rulesPath);
+                var loaded = JsonSerializer.Deserialize<HashtagRuleSet>(json);
+                if (loaded != null)
+                {
+                    loaded.CoreHashtags = NormalizeHashtags(loaded.CoreHashtags);
+                    loaded.NicheHashtags = NormalizeHashtags(loaded.NicheHashtags);
+                    loaded.TestHashtags = NormalizeHashtags(loaded.TestHashtags);
+                    loaded.CoreCount = Math.Max(0, loaded.CoreCount);
+                    loaded.NicheCount = Math.Max(0, loaded.NicheCount);
+                    loaded.TestCount = Math.Max(0, loaded.TestCount);
+                    loaded.PostMaxTags = Math.Max(1, loaded.PostMaxTags);
+                    loaded.ReelMaxTags = Math.Max(1, loaded.ReelMaxTags);
+                    loaded.CooldownDays = Math.Max(0, loaded.CooldownDays);
+                    return loaded;
+                }
+            }
+            catch
+            {
+                // Fall back to defaults below.
+            }
+        }
+
+        var legacyPath = Path.Combine(storageFolder, CommonHashtagsFileName);
+        var defaults = new HashtagRuleSet();
+        if (!File.Exists(legacyPath))
+        {
+            return defaults;
         }
 
         try
         {
-            var json = File.ReadAllText(hashtagsPath);
+            var json = File.ReadAllText(legacyPath);
             var tags = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
-            return tags
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x)
-                .ToList();
+            defaults.NicheHashtags = NormalizeHashtags(tags);
         }
         catch
         {
-            return new List<string>();
+            // Keep defaults.
+        }
+
+        return defaults;
+    }
+
+    public void SaveHashtagRules(string storageFolder, HashtagRuleSet rules)
+    {
+        Directory.CreateDirectory(storageFolder);
+        rules.CoreHashtags = NormalizeHashtags(rules.CoreHashtags);
+        rules.NicheHashtags = NormalizeHashtags(rules.NicheHashtags);
+        rules.TestHashtags = NormalizeHashtags(rules.TestHashtags);
+        rules.CoreCount = Math.Max(0, rules.CoreCount);
+        rules.NicheCount = Math.Max(0, rules.NicheCount);
+        rules.TestCount = Math.Max(0, rules.TestCount);
+        rules.PostMaxTags = Math.Max(1, rules.PostMaxTags);
+        rules.ReelMaxTags = Math.Max(1, rules.ReelMaxTags);
+        rules.CooldownDays = Math.Max(0, rules.CooldownDays);
+
+        var rulesPath = Path.Combine(storageFolder, HashtagRulesFileName);
+        var json = JsonSerializer.Serialize(rules, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(rulesPath, json);
+    }
+
+    public List<ScheduledPost> LoadSchedule(string storageFolder)
+    {
+        var schedulePath = Path.Combine(storageFolder, ScheduleFileName);
+        if (!File.Exists(schedulePath))
+        {
+            return new List<ScheduledPost>();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(schedulePath);
+            return JsonSerializer.Deserialize<List<ScheduledPost>>(json) ?? new List<ScheduledPost>();
+        }
+        catch
+        {
+            return new List<ScheduledPost>();
         }
     }
 
-    public void SaveCommonHashtags(string storageFolder, List<string> hashtags)
+    public void SaveSchedule(string storageFolder, List<ScheduledPost> schedule)
     {
         Directory.CreateDirectory(storageFolder);
-        var hashtagsPath = Path.Combine(storageFolder, CommonHashtagsFileName);
-        var normalized = hashtags
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x)
-            .ToList();
+        var schedulePath = Path.Combine(storageFolder, ScheduleFileName);
+        var json = JsonSerializer.Serialize(schedule.OrderBy(x => x.ScheduledAt).ToList(), new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(schedulePath, json);
+    }
 
-        var json = JsonSerializer.Serialize(normalized, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(hashtagsPath, json);
+    public ScheduleSettings LoadScheduleSettings(string storageFolder)
+    {
+        var settingsPath = Path.Combine(storageFolder, ScheduleSettingsFileName);
+        if (!File.Exists(settingsPath))
+        {
+            return new ScheduleSettings();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(settingsPath);
+            return JsonSerializer.Deserialize<ScheduleSettings>(json) ?? new ScheduleSettings();
+        }
+        catch
+        {
+            return new ScheduleSettings();
+        }
+    }
+
+    public void SaveScheduleSettings(string storageFolder, ScheduleSettings settings)
+    {
+        Directory.CreateDirectory(storageFolder);
+        var settingsPath = Path.Combine(storageFolder, ScheduleSettingsFileName);
+        var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(settingsPath, json);
     }
 
     public List<ScheduledPost> LoadSchedule(string storageFolder)
@@ -566,6 +649,18 @@ public class VideoLibraryService
     }
 
     private sealed record FingerprintEntry(VideoEntry Entry, DateTime? SourceCreationTime);
+
+
+    private static List<string> NormalizeHashtags(IEnumerable<string> hashtags)
+    {
+        return hashtags
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Select(x => x.StartsWith('#') ? x : $"#{x}")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToList();
+    }
 
     private static string NormalizePerformanceLevel(string? value)
     {
