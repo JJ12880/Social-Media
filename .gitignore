@@ -8,3 +8,6 @@ VideoPostOrganizer/obj/*
 VideoPostOrganizer.sln
 
 *.sln
+
+# Local secrets
+VideoPostOrganizer/appsettings.Local.json
